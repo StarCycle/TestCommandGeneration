@@ -31,18 +31,18 @@ def UpdateControlFlow(destID, pq9client, nextNodes, lastNodes, codeCountNum):
             nextNodes[startNode].append(endNode)
             lastNodes[endNode].append(startNode)
             newEdgeNum = newEdgeNum + 1
-    print(newEdgeNum, ' new edges in the control flow')
+    # print(newEdgeNum, ' new edges in the control flow')
 
 if __name__ == '__main__':
 
     # Initialization
-    dest = 'OBC'
-    destID = 1
+    dest = 'COMMS'
+    destID = 4
     maxIter = 5000
     coverage = 0 # initial value
     state = {}	 # initial value
     takeControlFlowStep = 100
-    codeCountNum = 1477
+    codeCountNum = 716
     nextNodes = [[] for i in range(codeCountNum+1)] # The first element is useless
     lastNodes = [[] for i in range(codeCountNum+1)]
     parser = Parser('para.csv', 'telec.csv', 'telem.csv')
@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
         # Swap states
         state = newState
-        print('iter ', iter, ', stateNum ', len(agent.states), ', coverage ', coverage)
+        print(iter, len(agent.states), coverage)
 
     controlFlowGraph = nx.DiGraph()
     for startNode in range(len(nextNodes)):
