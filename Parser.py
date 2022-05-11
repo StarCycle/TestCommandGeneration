@@ -20,7 +20,7 @@ class Parser:
                             {'rawPayload':[...], 'parameter1':..., 'parameter2':..., ...}
         '''
         allCommands = []
-        initialComb = {'rawPayload':[]}
+        initialComb = {'rawPayload':[], 'embedding':[0]*self.parameterNum}
         for service in self.commands[subsystem].keys():
             for command in self.commands[subsystem][service].keys():
                 initialComb['Service'] = service
@@ -37,6 +37,8 @@ class Parser:
             newComb = copy.deepcopy(combination)
             # Add new parameter and value to the combination
             newComb[parameter] = value
+            index = self.parameters[subsystem][parameter]['index']
+            newComb['embedding'][index] = value
             if self.parameters[subsystem][parameter]['type'] == 'ENUMERATED':
                 newComb[parameter] = self.parameters[subsystem][parameter]['enumSet'][str(value)]
             # Add new data (original code) to the rawPayload. Assume size of the parameter > 8
@@ -180,6 +182,7 @@ class Parser:
         with open(paraFile, encoding = 'utf-8', errors = 'replace') as csvFile:
             csvReader = csv.reader(csvFile)
             firstLine = True
+            index = 0
             for row in csvReader:
                 if firstLine == True:
                     firstLine = False
@@ -189,6 +192,9 @@ class Parser:
                     subsystem = 'PQ'
                 name = row[1]
                 self.parameters[subsystem][name] = {}
+                # for embedding to neural network
+                self.parameters[subsystem][name]['index'] = index 
+                index = index + 1
                 self.parameters[subsystem][name]['type'] = row[2]
                 self.parameters[subsystem][name]['unit'] = row[3]
                 if row[4] == 'unknown':
@@ -208,3 +214,4 @@ class Parser:
             for subsystem in self.parameters:
                 for key in self.parameters['PQ']:
                     self.parameters[subsystem][key] = self.parameters['PQ'][key]
+            self.parameterNum = index

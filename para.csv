@@ -16,6 +16,7 @@ Space System Name,Name,Type,,Size,Format,Min Value,Max Value,Description,Enum
 /Delfi-PQ,VersionNumber,SIGNED,,8,unsigned,,,,
 /Delfi-PQ,MCUTemp,FLOAT32,°„C,16,twosComplement,-60,130,,
 /Delfi-PQ,SlotNumber,SIGNED,,8,unsigned,,,,
+/Delfi-PQ,SoftwareUpdateOps,ENUMERATED,,8,unsigned,,,,"{""0"":""StartOTA"", ""1"":""SetMetaData"", ""2"":""GetMetaData"", ""3"":""SetPartialCRCs"", ""5"":""SetBlocks"", ""6"":""CheckMD5"", ""7"":""StopOTA"", ""8"":""EraseSlot"", ""11"":""GetMissedBlocks"", ""12"":""GetMissedCRCs"", ""13"":""GetVersionNr""}"
 /Delfi-PQ,SoftwareUpdateReply,ENUMERATED,,8,unsigned,,,,"{""0"":""Normal"", ""1"":""No FRAM Access"", ""2"":""No Slot Access"", ""3"":""Memory Full"", ""4"":""Parameter Mismatch"", ""5"":""Update Not Started"", ""6"":""Update Already Started"", ""7"":""Update Not Current Session"", ""8"":""Update Too Big"", ""9"":""Metadata Already Received"", ""10"":""Metadata Not Received"", ""11"":""Partial Already Received"", ""12"":""Partial Not Received"", ""13"":""CRC Mismatched"", ""14"":""MD5 Mismatched"", ""15"":""Slot Out Of Range"", ""16"":""Offset Out Of Range"", ""17"":""Slot Not Empty"", ""18"":""Slot Not Programmed"", ""20"":""Self Action"", ""21"":""No Version Number""}"
 /Delfi-PQ,SlotVolume,ENUMERATED,,8,unsigned,,,,"{""0"":""Empty"", ""1"":""Partial"", ""2"":""Full""}"
 /Delfi-PQ,MD5,SIGNED,,128,unsigned,,,,
@@ -52,7 +53,7 @@ Space System Name,Name,Type,,Size,Format,Min Value,Max Value,Description,Enum
 /Delfi-PQ/COMMS,AmplifierCurrent,FLOAT32,A,16,twosComplement,0,1.5,,
 /Delfi-PQ/COMMS,PhasingTemperature,FLOAT32,°„C,16,twosComplement,-60,130,,
 /Delfi-PQ/COMMS,AmplifierTemperature,FLOAT32,°„C,16,twosComplement,-60,130,,
-/Delfi-PQ/COMMS,SimpleRadioOps,ENUMERATED,,8,unsigned,,,,"{""1"":""Init TX"", ""2"":""Init RX"", ""5"":""Remove RX Frame"", ""10"":""Send Frame OC (todo)"", ""11"":""Set CS to (todo)"", ""12"":""Set CS from (todo)"", ""99"":""Reset EPS""}"
+/Delfi-PQ/COMMS,RadioOps,ENUMERATED,,8,unsigned,,,,"{""1"":""Init TX"", ""2"":""Init RX"", ""3"":""GetRXFrameNr"", ""4"":""GetRXFrame"", ""5"":""Remove RX Frame"", ""6"":""GetRX_RSSI"", ""7"":""GetRXLast_RSSI"", ""8"":""GetRX_Freq_Error"", ""9"":""SendFrame"", ""10"":""Send Frame OC (todo)"", ""11"":""Set CS to (todo)"", ""12"":""Set CS from (todo)"", ""13"":""SetTXIdleState"", ""14"":""SetTXBitRate"", ""15"":""SetRadioPA"", ""16"":""SetTXPower"", ""18"":""SetTXFreq"", ""24"":""SetRXBitRate"", ""28"":""SetRXFreq"", ""99"":""Reset EPS""}"
 /Delfi-PQ/COMMS,RXFrameNumber,SIGNED,,8,unsigned,,,,
 /Delfi-PQ/COMMS,LastFreqError,SIGNED,,16,twosComplement,,,,
 /Delfi-PQ/COMMS,TXBitRate,SIGNED,,16,unsigned,1200,9600,,
