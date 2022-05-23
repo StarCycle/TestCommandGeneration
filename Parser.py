@@ -63,7 +63,7 @@ class Parser:
             trFrame     translated dict of rawFrame
         '''
         rawFrame = rawReply[3:-2]
-        trFrame = {'Source':source, 'Service':service, 'Command':command}
+        trFrame = {'Source':source, 'Service':service, 'Command':command, 'embedding':[0]*self.parameterNum}
         index = 0 # This function has read how many bits from the rawFrame
         reply = self.replies[source][service][command]
         for parameter in reply:
