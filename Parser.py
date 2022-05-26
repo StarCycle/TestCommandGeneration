@@ -4,52 +4,10 @@ import json
 
 class Parser:
 
-    def __init__(self, paraFile, commandFile, replyFile):
+    def __init__(self, paraFile, replyFile):
         self.AddParameters(paraFile)
-        self.AddCommands(commandFile)
         self.AddReplies(replyFile)
         return
-
-    def ListAllCommands(self, subsystem):
-        '''
-        List all parameter value combinations of cpmmands for a subsystem
-        Input:
-            subsystem       name of the subsystem, like 'COMMS'
-        Output:
-            allCommands     A list of all commands. Each command is a dictionary:
-                            {'rawPayload':[...], 'parameter1':..., 'parameter2':..., ...}
-        '''
-        allCommands = []
-        initialComb = {'rawPayload':[], 'embedding':[0]*self.parameterNum}
-        for service in self.commands[subsystem].keys():
-            for command in self.commands[subsystem][service].keys():
-                initialComb['Service'] = service
-                initialComb['Command'] = command
-                for combination in self.SearchCombinations(subsystem, self.commands[subsystem][service][command], initialComb):
-                    allCommands.append(combination)
-        return allCommands
-
-    def SearchCombinations(self, subsystem, command, combination):
-        parameter = command[0][0]
-        selectFrom = command[0][1]
-        size = command[0][2]
-        for value in selectFrom:
-            newComb = copy.deepcopy(combination)
-            # Add new parameter and value to the combination
-            newComb[parameter] = value
-            index = self.parameters[subsystem][parameter]['index']
-            newComb['embedding'][index] = value
-            if self.parameters[subsystem][parameter]['type'] == 'ENUMERATED':
-                newComb[parameter] = self.parameters[subsystem][parameter]['enumSet'][str(value)]
-            # Add new data (original code) to the rawPayload. Assume size of the parameter > 8
-            binData = bin(value)[2:].rjust(size, '0')
-            for i in range(0, size//8):
-                newComb['rawPayload'].append(int(binData[8*i:8*i+8], 2))
-            # Process next parameter
-            if len(command) > 1:
-                yield from self.SearchCombinations(subsystem, command[1:], newComb)
-            elif len(command) == 1:
-                yield newComb
 
     def ParseReply(self, rawReply, source, service, command):
         '''
@@ -141,42 +99,12 @@ class Parser:
                 for key in self.replies['PQ']:
                     self.replies[subsystem][key] = self.replies['PQ'][key]
 
-    def AddCommands(self, commandFile):
-        '''
-        Read command definitions. The data structure:
-        subsystem (dict) -> service (dict) -> command (list) -> a parameter in the command
-        When sending a command, its parameters can only be chosen from the 'selectFrom' list
-        '''
-        self.commands = {'PQ':{}, 'EPS':{}, 'OBC':{}, 'ADCS':{}, 'ADB':{}, 'COMMS':{}, 'LOBE':{}, 'PROP':{}}
-        with open(commandFile, encoding = 'utf-8', errors = 'replace') as csvFile:
-            csvReader = csv.reader(csvFile)
-            firstLine = True
-            for row in csvReader:
-                if firstLine == True:
-                    firstLine = False
-                    continue
-                if row[3] == 'Command':
-                    subsystem = row[0].replace('Delfi-PQ','').replace(r'/', '')
-                    if subsystem == '':
-                        subsystem = 'PQ'
-                    service = row[1]
-                    if service not in self.commands[subsystem].keys():
-                        self.commands[subsystem][service] = {}
-                    command = row[2]
-                    self.commands[subsystem][service][command] = []
-                elif row[3] == 'Argument':
-                    parameter = row[4]
-                    selectFrom = json.loads(row[5])
-                    size = int(row[6])
-                    self.commands[subsystem][service][command].append([parameter, selectFrom, size]) 
-            for subsystem in self.commands:
-                for key in self.commands['PQ']:
-                    self.commands[subsystem][key] = self.commands['PQ'][key]
-
     def AddParameters(self, paraFile):
         '''
         Read parameter definitions. The data structure is:
         subsystem (dict) -> parameter (dict) -> attributes of a parameter 
+        
+        One special parameter is cmdParas, which is a list of parameters used in commands 
         '''
         self.parameters = {'PQ':{}, 'EPS':{}, 'OBC':{}, 'ADCS':{}, 'ADB':{}, 'COMMS':{}, 'LOBE':{}, 'PROP':{}}
         with open(paraFile, encoding = 'utf-8', errors = 'replace') as csvFile:
@@ -190,6 +118,8 @@ class Parser:
                 subsystem = row[0].replace('Delfi-PQ','').replace(r'/', '')
                 if subsystem == '':
                     subsystem = 'PQ'
+                if 'cmdParas' not in self.parameters[subsystem]:
+                    self.parameters[subsystem]['cmdParas'] = []
                 name = row[1]
                 self.parameters[subsystem][name] = {}
                 # for embedding to neural network
@@ -208,6 +138,10 @@ class Parser:
                 self.parameters[subsystem][name]['maxValue'] = float('NaN')
                 if row[7] != '':
                     self.parameters[subsystem][name]['maxValue'] = float(row[7])
+                self.parameters[subsystem][name]['selectFrom'] = 'Reply Only'
+                if row[8] != 'Reply Only':
+                    self.parameters[subsystem][name]['selectFrom'] = json.loads(row[8]) 
+                    self.parameters[subsystem]['cmdParas'].append(name)
                 self.parameters[subsystem][name]['enumSet'] = {}
                 if self.parameters[subsystem][name]['type'] == 'ENUMERATED':
                     self.parameters[subsystem][name]['enumSet'] = json.loads(row[9])
