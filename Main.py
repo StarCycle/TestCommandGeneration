@@ -1,6 +1,6 @@
 from PQ9Client import PQ9Client
-import numpy as np
 import csv
+from random import randint, choice, sample
 import json
 
 def AddParameters(paraFile):
@@ -47,7 +47,7 @@ def GetReward(destID, pq9client, recordCov, covSum):
 def RandomPayload(parameters, maxLength):
     payload, embedding = [], []
     # Service
-    selectedValue = np.random.choice(parameters['Service']['selectFrom'])
+    selectedValue = choice(parameters['Service']['selectFrom'])
     embedding.append(parameters['Service']['index'])
     embedding.append(selectedValue)
     payload.append(selectedValue)
@@ -56,14 +56,14 @@ def RandomPayload(parameters, maxLength):
     embedding.append(1)
     payload.append(1)
     # Other parameters
-    restLength = np.random.randint(0, maxLength) 
-    otherParameters = np.random.choice(list(parameters.keys()), size=restLength)
+    restLength = randint(0, maxLength - 2) 
+    otherParameters = sample(list(parameters.keys()), restLength)
     for parameter in otherParameters:
-        selectedValue = np.random.choice(parameters[parameter]['selectFrom'])
+        selectedValue = choice(parameters[parameter]['selectFrom'])
         embedding.append(parameters[parameter]['index'])
         embedding.append(selectedValue)
         payload.append(selectedValue)
-    return payload, cmdEmbedding
+    return payload, embedding
 	
 if __name__ == '__main__':
 
