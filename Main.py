@@ -1,6 +1,32 @@
-from Parser import Parser
 from PQ9Client import PQ9Client
 import numpy as np
+import csv
+import json
+
+def AddParameters(paraFile):
+    '''
+    Return a dict of parameters. Each parameter has its own dict.
+    '''
+    parameters = {}
+    with open(paraFile, encoding = 'utf-8', errors = 'replace') as csvFile:
+        csvReader = csv.reader(csvFile)
+        index = -2
+        for row in csvReader:
+            index = index + 1
+            if index == -1: # First line of paraFile
+                firstLine = False
+                continue
+            name = row[1]
+            parameters[name] = {}
+            parameters[name]['index'] = index
+            parameters[name]['subsystem'] = row[0]
+            parameters[name]['type'] = row[2]
+            parameters[name]['size'] = int(row[3])
+            parameters[name]['selectFrom'] = json.loads(row[4]) 
+            parameters[name]['enumSet'] = {}
+            if row[5] != '':
+                parameters[name]['enumSet'] = json.loads(row[5])
+    return parameters
 
 def GetReward(destID, pq9client, recordCov, covSum):
     # Retrieve coverage array from the target
@@ -16,17 +42,28 @@ def GetReward(destID, pq9client, recordCov, covSum):
             recordCov[i] = 1
             covSum = covSum + 1
             reward = reward + 1
-    return reward, covSum
+    return reward, covSum, [int(value) for value in list(binCov)]
 
 def RandomPayload(parameters, maxLength):
-    payload = []
-    payload.append(np.random.choice([3,17,18,19,25])) # service
-    payload.append(1)								  # request
-    payloadLength = np.random.randint(0, maxLength) 
-    payloadParameters = np.random.choice(parameters['cmdParas'], size=payloadLength)
-    for parameter in payloadParameters:
-        payload.append(np.random.choice(parameters[parameter]['selectFrom']))    
-    return payload
+    payload, embedding = [], []
+    # Service
+    selectedValue = np.random.choice(parameters['Service']['selectFrom'])
+    embedding.append(parameters['Service']['index'])
+    embedding.append(selectedValue)
+    payload.append(selectedValue)
+    # Request
+    embedding.append(parameters['Request']['index'])
+    embedding.append(1)
+    payload.append(1)
+    # Other parameters
+    restLength = np.random.randint(0, maxLength) 
+    otherParameters = np.random.choice(list(parameters.keys()), size=restLength)
+    for parameter in otherParameters:
+        selectedValue = np.random.choice(parameters[parameter]['selectFrom'])
+        embedding.append(parameters[parameter]['index'])
+        embedding.append(selectedValue)
+        payload.append(selectedValue)
+    return payload, cmdEmbedding
 	
 if __name__ == '__main__':
 
@@ -38,23 +75,26 @@ if __name__ == '__main__':
     covSum = 0 # initial value
     codeCountNum = 716
     recordCov = [0]*codeCountNum
-    parser = Parser('para.csv', 'telem.csv')
+    embeddings = {'cmd':[], 'cov':[]}
+    parameters = AddParameters('para.csv')
     pq9client = PQ9Client('localhost', '10000', 0.5)
     pq9client.connect()
-    f = open('curve.txt', 'w')
 
     # The loop
     for iter in range(maxIter):
 
         # Ramdomly organize a payload of command
-        payload = RandomPayload(parser.parameters[dest], maxPayloadLength)
+        payload, cmdEmbedding = RandomPayload(parameters, maxPayloadLength)
+        embeddings['cmd'].append(cmdEmbedding)
 
         # RL takes an action
         succes, rawReply = pq9client.processCommand(destID, payload)
-        # reply = parser.ParseReply(rawReply, dest, command['Service'], command['Command'])
 
         # Calculate Reward
-        reward, covSum = GetReward(destID, pq9client, recordCov, covSum)
+        reward, covSum, covEmbedding = GetReward(destID, pq9client, recordCov, covSum)
+        embeddings['cov'].append(covEmbedding)
 		
         print(iter, covSum)
-        f.write(f'{iter}, {covSum}\n')
+
+    with open('dataset.json', 'w') as f:
+        json.dump(embeddings, f)

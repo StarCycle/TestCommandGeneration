@@ -1,67 +1,27 @@
-Space System Name,Name,Type,,Size,Format,Min Value,Max Value,Select From,Enum
-/Delfi-PQ,AllowResume,ENUMERATED,,8,unsigned,,,"[0,1]","{""0"":""No Resume"", ""1"":""Allow Resume""}"
-/Delfi-PQ/COMMS,AmplifierCurrent,FLOAT32,A,16,twosComplement,0,1.5,Reply Only,
-/Delfi-PQ/COMMS,AmplifierINAStatus,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Fault"", ""1"": ""Normal""}"
-/Delfi-PQ/COMMS,AmplifierTemperature,FLOAT32,°„C,16,twosComplement,-60,130,Reply Only,
-/Delfi-PQ/COMMS,AmplifierTMPStatus,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Fault"", ""1"": ""Normal""}"
-/Delfi-PQ/COMMS,AmplifierVoltage,FLOAT32,V,16,unsigned,0,6,Reply Only,
-/Delfi-PQ,Block,SIGNED,,256,unsigned,,,[0],
-/Delfi-PQ,BlockNumber,SIGNED,,16,unsigned,,,[2048],
-/Delfi-PQ,BootCounter,SIGNED,,8,unsigned,,,Reply Only,
-/Delfi-PQ,CRC,SIGNED,,8,unsigned,,,[0],
-/Delfi-PQ/COMMS,Current,FLOAT32,A,16,twosComplement,0,1.5,Reply Only,
-/Delfi-PQ,Destination,ENUMERATED,,8,unsigned,,,"[1,4,8]","{""1"": ""OBC"", ""4"": ""COMMS"", ""8"":""EGSE""}"
-/Delfi-PQ,EraseFlag,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Not erase"", ""1"":""Erase""}"
-/Delfi-PQ,EraseslotAcknowledge,ENUMERATED,,8,unsigned,,,[13],"{""13"":""Acknowledge""}"
-/Delfi-PQ,Frame,SINGED,,unknown,,,,Reply Only,
-/Delfi-PQ/COMMS,Idle,ENUMERATED,,8,unsigned,,,"[0,1]","{""0"":""TX idle"", ""1"":""TX working""}"
-/Delfi-PQ/COMMS,INAStatus,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Fault"", ""1"": ""Normal""}"
-/Delfi-PQ/COMMS,LastFreqError,SIGNED,,16,twosComplement,,,Reply Only,
-/Delfi-PQ/COMMS,LastReceiverRSSI,SIGNED,dBm,16,twosComplement,,,Reply Only,
-/Delfi-PQ,MCUTemp,FLOAT32,°„C,16,twosComplement,-60,130,Reply Only,
-/Delfi-PQ,MD5,SIGNED,,128,unsigned,,,[0],
-/Delfi-PQ,MD5Correct,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Not correct"", ""1"":""Correct""}"
-/Delfi-PQ,MD5Equal,ENUMERATED,,8,unsigned,,,Reply Only,"{""0"":""NOT Equal"", ""1"":""Equal""}"
-/Delfi-PQ/COMMS,MessageSize,SIGNED,,8,unsigned,,,Reply Only,
-/Delfi-PQ,MetaDataReceived,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Not received"", ""1"":""Received""}"
-/Delfi-PQ,OTAOffset,SIGNED,,8,unsigned,,,[0],
-/Delfi-PQ/COMMS,PAMode,ENUMERATED,,8,unsigned,,,"[0,1,2]","{""0"":""PA Mode Low"", ""1"":""PA Mode Medium"", ""2"":""PA Mode High""}"
-/Delfi-PQ,PartialCRCReceived,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Not received"", ""1"":""Received""}"
-/Delfi-PQ/COMMS,PhasingTemperature,FLOAT32,°„C,16,twosComplement,-60,130,Reply Only,
-/Delfi-PQ/COMMS,PhasingTMPStatus,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Fault"", ""1"": ""Normal""}"
-/Delfi-PQ/COMMS,Power,SIGNED,,8,unsigned,,,[14],
-/Delfi-PQ/COMMS,RadioMessageType,ENUMERATED,,8,unsigned,,,"[17,1,2,3]","{""170"":""Reset EPS"", ""1"":""COMMS internal command"", ""2"":""COMMS overrides the bus"", ""3"":""COMMS passes it to OBC""}"
-/Delfi-PQ/COMMS,RadioOps,ENUMERATED,,8,unsigned,,,"[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,24,28,99]","{""1"":""Init TX"", ""2"":""Init RX"", ""3"":""GetRXFrameNr"", ""4"":""GetRXFrame"", ""5"":""Remove RX Frame"", ""6"":""GetRX_RSSI"", ""7"":""GetRXLast_RSSI"", ""8"":""GetRX_Freq_Error"", ""9"":""SendFrame"", ""10"":""Send Frame OC (todo)"", ""11"":""Set CS to (todo)"", ""12"":""Set CS from (todo)"", ""13"":""SetTXIdleState"", ""14"":""SetTXBitRate"", ""15"":""SetRadioPA"", ""16"":""SetTXPower"", ""18"":""SetTXFreq"", ""24"":""SetRXBitRate"", ""28"":""SetRXFreq"", ""99"":""Reset EPS""}"
-/Delfi-PQ/COMMS,RadioReply,ENUMERATED,,8,unsigned,,,Reply Only,"{""0"": ""Normal"", ""1"":""Unknown Command(Error)"", ""2"":""Invalid Value(Error)""}"
-/Delfi-PQ/COMMS,ReceiverRSSI,SIGNED,dBm,16,twosComplement,,,Reply Only,
-/Delfi-PQ,Request,ENUMERATED,,8,unsigned,,,"[0,1,2]","{""0"": ""Error"", ""1"":""Request"", ""2"":""Reply""}"
-/Delfi-PQ,Reset,ENUMERATED,,8,unsigned,,,"[0,1,2,3]","{""0"": ""Error"", ""1"":""Soft"", ""2"":""Hard"", ""3"":""PowerCycle""}"
-/Delfi-PQ,ResetCause,SIGNED,,24,unsigned,,,Reply Only,
-/Delfi-PQ,ResetReply,ENUMERATED,,8,unsigned,,,Reply Only,"{""0"": ""Normal"", ""1"":""Unknown Command(Error)""}"
-/Delfi-PQ/COMMS,RXBitRate,SIGNED,,16,unsigned,1200,9600,"[1200, 2400, 3600, 4800, 6000, 7200, 8400, 9600]",
-/Delfi-PQ/COMMS,RXFrameNumber,SIGNED,,8,unsigned,,,Reply Only,
-/Delfi-PQ/COMMS,RXFreq,SIGNED,,32,unsigned,,,"[145000000, 435000000]",
-/Delfi-PQ,Service,ENUMERATED,,8,unsigned,,,"[3,7,18,19,25]","{""3"": ""Housekeeping"", ""17"":""Ping"", ""18"":""SoftwareUpdate"", ""19"":""Reset"", ""25"":""Radio""}"
-/Delfi-PQ,SingleBitPadding,SINGED,,1,unsigned,,,"[0,1]",
-/Delfi-PQ,SingleBytePadding,SINGED,,8,unsigned,,,"[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]",
-/Delfi-PQ,SlotNumber,SIGNED,,8,unsigned,,,"[1,2]",
-/Delfi-PQ,SlotStatus,ENUMERATED,,2,unsigned,,,Reply Only,"{""0"":""Empty"", ""1"":""Patial"", ""2"":""Full""}"
-/Delfi-PQ,SlotUpdating,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""slot1"", ""1"":""slot2""}"
-/Delfi-PQ,SlotVolume,ENUMERATED,,8,unsigned,,,Reply Only,"{""0"":""Empty"", ""1"":""Partial"", ""2"":""Full""}"
-/Delfi-PQ,SoftwareUpdateOps,ENUMERATED,,8,unsigned,,,"[0,1,2,3,5,6,7,8,11,12,13]","{""0"":""StartOTA"", ""1"":""SetMetaData"", ""2"":""GetMetaData"", ""3"":""SetPartialCRCs"", ""5"":""SetBlocks"", ""6"":""CheckMD5"", ""7"":""StopOTA"", ""8"":""EraseSlot"", ""11"":""GetMissedBlocks"", ""12"":""GetMissedCRCs"", ""13"":""GetVersionNr""}"
-/Delfi-PQ,SoftwareUpdateReply,ENUMERATED,,8,unsigned,,,Reply Only,"{""0"":""Normal"", ""1"":""No FRAM Access"", ""2"":""No Slot Access"", ""3"":""Memory Full"", ""4"":""Parameter Mismatch"", ""5"":""Update Not Started"", ""6"":""Update Already Started"", ""7"":""Update Not Current Session"", ""8"":""Update Too Big"", ""9"":""Metadata Already Received"", ""10"":""Metadata Not Received"", ""11"":""Partial Already Received"", ""12"":""Partial Not Received"", ""13"":""CRC Mismatched"", ""14"":""MD5 Mismatched"", ""15"":""Slot Out Of Range"", ""16"":""Offset Out Of Range"", ""17"":""Slot Not Empty"", ""18"":""Slot Not Programmed"", ""20"":""Self Action"", ""21"":""No Version Number""}"
-/Delfi-PQ,Source,ENUMERATED,,8,unsigned,,,"[1,4,8]","{""1"": ""OBC"", ""4"": ""COMMS"", ""8"":""EGSE""}"
-/Delfi-PQ,Status,ENUMERATED,,8,unsigned,,,Reply Only,"{""0"": ""slot0"", ""1"":""slot1"", ""2"":""slot2""}"
-/Delfi-PQ/COMMS,Temperature,FLOAT32,°„C,16,twosComplement,-60,130,Reply Only,
-/Delfi-PQ/COMMS,TMPStatus,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Fault"", ""1"": ""Normal""}"
-/Delfi-PQ,TotalUptime,SIGNED,s,32,unsigned,,,Reply Only,
-/Delfi-PQ/COMMS,TransmitCurrent,FLOAT32,A,16,twosComplement,0,1.5,Reply Only,
-/Delfi-PQ/COMMS,TransmitINAStatus,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Fault"", ""1"": ""Normal""}"
-/Delfi-PQ/COMMS,TransmitVoltage,FLOAT32,V,16,unsigned,0,6,Reply Only,
-/Delfi-PQ/COMMS,TXBitRate,SIGNED,,16,unsigned,1200,9600,"[1200, 2400, 3600, 4800, 6000, 7200, 8400, 9600]",
-/Delfi-PQ/COMMS,TXFreq,SIGNED,,32,unsigned,,,"[145000000, 435000000]",
-/Delfi-PQ,UpdateFlag,ENUMERATED,,1,unsigned,,,Reply Only,"{""0"":""Not updating"", ""1"":""Updating""}"
-/Delfi-PQ,Uptime,SIGNED,s,32,unsigned,,,Reply Only,
-/Delfi-PQ,VersionNumber,SIGNED,,8,unsigned,,,Reply Only,
-/Delfi-PQ,VersionNumberInOTA,SIGNED,,64,unsigned,,,[0],
-/Delfi-PQ/COMMS,Voltage,FLOAT32,V,16,unsigned,0,6,Reply Only,
+Space System Name,Name,Type,Size,Select From,Enum
+/Delfi-PQ,AllowResume,ENUMERATED,8,"[0,1]","{""0"":""No Resume"", ""1"":""Allow Resume""}"
+/Delfi-PQ,Block,SIGNED,256,[0],
+/Delfi-PQ,BlockNumber,SIGNED,16,[2048],
+/Delfi-PQ,CRC,SIGNED,8,[0],
+/Delfi-PQ,Destination,ENUMERATED,8,"[1,4,8]","{""1"": ""OBC"", ""4"": ""COMMS"", ""8"":""EGSE""}"
+/Delfi-PQ,EraseslotAcknowledge,ENUMERATED,8,[13],"{""13"":""Acknowledge""}"
+/Delfi-PQ/COMMS,Idle,ENUMERATED,8,"[0,1]","{""0"":""TX idle"", ""1"":""TX working""}"
+/Delfi-PQ,MD5,SIGNED,128,[0],
+/Delfi-PQ,OTAOffset,SIGNED,8,[0],
+/Delfi-PQ/COMMS,PAMode,ENUMERATED,8,"[0,1,2]","{""0"":""PA Mode Low"", ""1"":""PA Mode Medium"", ""2"":""PA Mode High""}"
+/Delfi-PQ/COMMS,Power,SIGNED,8,[14],
+/Delfi-PQ/COMMS,RadioMessageType,ENUMERATED,8,"[17,1,2,3]","{""170"":""Reset EPS"", ""1"":""COMMS internal command"", ""2"":""COMMS overrides the bus"", ""3"":""COMMS passes it to OBC""}"
+/Delfi-PQ/COMMS,RadioOps,ENUMERATED,8,"[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,24,28,99]","{""1"":""Init TX"", ""2"":""Init RX"", ""3"":""GetRXFrameNr"", ""4"":""GetRXFrame"", ""5"":""Remove RX Frame"", ""6"":""GetRX_RSSI"", ""7"":""GetRXLast_RSSI"", ""8"":""GetRX_Freq_Error"", ""9"":""SendFrame"", ""10"":""Send Frame OC (todo)"", ""11"":""Set CS to (todo)"", ""12"":""Set CS from (todo)"", ""13"":""SetTXIdleState"", ""14"":""SetTXBitRate"", ""15"":""SetRadioPA"", ""16"":""SetTXPower"", ""18"":""SetTXFreq"", ""24"":""SetRXBitRate"", ""28"":""SetRXFreq"", ""99"":""Reset EPS""}"
+/Delfi-PQ,Request,ENUMERATED,8,"[0,1,2]","{""0"": ""Error"", ""1"":""Request"", ""2"":""Reply""}"
+/Delfi-PQ,Reset,ENUMERATED,8,"[0,1,2,3]","{""0"": ""Error"", ""1"":""Soft"", ""2"":""Hard"", ""3"":""PowerCycle""}"
+/Delfi-PQ/COMMS,RXBitRate,SIGNED,16,"[1200, 2400, 3600, 4800, 6000, 7200, 8400, 9600]",
+/Delfi-PQ/COMMS,RXFreq,SIGNED,32,"[145000000, 435000000]",
+/Delfi-PQ,Service,ENUMERATED,8,"[3,7,18,19,25]","{""3"": ""Housekeeping"", ""17"":""Ping"", ""18"":""SoftwareUpdate"", ""19"":""Reset"", ""25"":""Radio""}"
+/Delfi-PQ,SingleBitPadding,SINGED,1,"[0,1]",
+/Delfi-PQ,SingleBytePadding,SINGED,8,"[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]",
+/Delfi-PQ,SlotNumber,SIGNED,8,"[1,2]",
+/Delfi-PQ,SoftwareUpdateOps,ENUMERATED,8,"[0,1,2,3,5,6,7,8,11,12,13]","{""0"":""StartOTA"", ""1"":""SetMetaData"", ""2"":""GetMetaData"", ""3"":""SetPartialCRCs"", ""5"":""SetBlocks"", ""6"":""CheckMD5"", ""7"":""StopOTA"", ""8"":""EraseSlot"", ""11"":""GetMissedBlocks"", ""12"":""GetMissedCRCs"", ""13"":""GetVersionNr""}"
+/Delfi-PQ,Source,ENUMERATED,8,"[1,4,8]","{""1"": ""OBC"", ""4"": ""COMMS"", ""8"":""EGSE""}"
+/Delfi-PQ/COMMS,TXBitRate,SIGNED,16,"[1200, 2400, 3600, 4800, 6000, 7200, 8400, 9600]",
+/Delfi-PQ/COMMS,TXFreq,SIGNED,32,"[145000000, 435000000]",
+/Delfi-PQ,VersionNumberInOTA,SIGNED,64,[0],
