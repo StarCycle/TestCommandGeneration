@@ -70,7 +70,7 @@ if __name__ == '__main__':
     # Initialization
     dest = 'COMMS'
     destID = 4
-    maxIter = 5000
+    maxIter = 10000
     maxPayloadLength = 20
     covSum = 0 # initial value
     codeCountNum = 716
