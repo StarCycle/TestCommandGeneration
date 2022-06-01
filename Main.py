@@ -56,14 +56,17 @@ def RandomPayload(parameters, maxLength):
     embedding.append(1)
     payload.append(1)
     # Other parameters
-    restLength = np.random.randint(0, maxLength) 
+    restLength = np.random.randint(0, maxLength - 2 + 1) 
     otherParameters = np.random.choice(list(parameters.keys()), size=restLength)
     for parameter in otherParameters:
         selectedValue = np.random.choice(parameters[parameter]['selectFrom'])
         embedding.append(parameters[parameter]['index'])
         embedding.append(selectedValue)
         payload.append(selectedValue)
-    return payload, cmdEmbedding
+    # Padding
+    while(len(embedding) < 2*maxLength):
+        embedding.append(0)
+    return payload, embedding
 	
 if __name__ == '__main__':
 
