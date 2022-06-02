@@ -56,8 +56,8 @@ def RandomPayload(parameters, maxLength):
     embedding.append(1)
     payload.append(1)
     # Other parameters
-    restLength = randint(0, maxLength - 2 + 1) 
-    otherParameters = choice(list(parameters.keys()))
+    restLength = randint(0, maxLength - 2) 
+    otherParameters = sample(list(parameters.keys()), restLength)
     for parameter in otherParameters:
         selectedValue = choice(parameters[parameter]['selectFrom'])
         embedding.append(parameters[parameter]['index'])
