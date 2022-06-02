@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
 from torch.utils import data
 from torch.utils.tensorboard import SummaryWriter
 import json
@@ -68,9 +69,17 @@ cmds = torch.tensor(embeddings['cmd'], device=try_gpu(), dtype=torch.float32)
 cov= torch.tensor(embeddings['cov'], device=try_gpu(), dtype=torch.float32)
 
 # Preprocess
-cmds -= torch.mean(cmds, axis = 0)
-cmds /= torch.std(cmds, axis = 0)
-cmds = torch.nan_to_num(cmds, nan=0)
+sample_num = cmds.shape[0]
+cmd_len = cmds.shape[1]
+processed_cmds = F.one_hot(cmds[:,0].long())
+for i in range(1, cmd_len):
+    if i % 2 == 0: # parameter index
+        torch.cat((processed_cmds, F.one_hot(cmds[:,i].long())), 1)
+    else: # parameter value
+        cmds[:,i] -= torch.mean(cmds[:,i])
+        cmds[:,i] /= torch.std(cmds[:,i])
+        cmds[:,i] = torch.nan_to_num(cmds[:,i], nan=0)
+        torch.cat((processed_cmds, cmds[:,i].reshape((sample_num, 1))), 1)
 
 # Baseline Network
 loss = nn.MSELoss()

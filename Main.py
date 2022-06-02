@@ -18,7 +18,7 @@ def AddParameters(paraFile):
                 continue
             name = row[1]
             parameters[name] = {}
-            parameters[name]['index'] = index
+            parameters[name]['index'] = index   # Start from 0
             parameters[name]['subsystem'] = row[0]
             parameters[name]['type'] = row[2]
             parameters[name]['size'] = int(row[3])
@@ -56,8 +56,8 @@ def RandomPayload(parameters, maxLength):
     embedding.append(1)
     payload.append(1)
     # Other parameters
-    restLength = np.random.randint(0, maxLength - 2 + 1) 
-    otherParameters = np.random.choice(list(parameters.keys()), size=restLength)
+    restLength = randint(0, maxLength - 2 + 1) 
+    otherParameters = choice(list(parameters.keys()))
     for parameter in otherParameters:
         selectedValue = choice(parameters[parameter]['selectFrom'])
         embedding.append(parameters[parameter]['index'])
