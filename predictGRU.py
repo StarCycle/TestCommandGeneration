@@ -63,41 +63,44 @@ def try_gpu():
         return torch.device('cuda')
     return torch.device('cpu')
 
-with open('dataset.json', 'r') as f:
-    embeddings = json.load(f)
-cmds = torch.tensor(embeddings['cmd'], device=try_gpu(), dtype=torch.float32)
-cov= torch.tensor(embeddings['cov'], device=try_gpu(), dtype=torch.float32)
+if __name__ == "__main__":
 
-# Preprocess
-sample_num = cmds.shape[0]
-cmd_len = cmds.shape[1]
-processed_cmds = F.one_hot(cmds[:,0].long())
-for i in range(1, cmd_len):
-    if i % 2 == 0: # parameter index
-        torch.cat((processed_cmds, F.one_hot(cmds[:,i].long())), 1)
-    else: # parameter value
-        cmds[:,i] -= torch.mean(cmds[:,i])
-        cmds[:,i] /= torch.std(cmds[:,i])
-        cmds[:,i] = torch.nan_to_num(cmds[:,i], nan=0)
-        torch.cat((processed_cmds, cmds[:,i].reshape((sample_num, 1))), 1)
+    with open('dataset.json', 'r') as f:
+        embeddings = json.load(f)
+    cmds = torch.tensor(embeddings['cmd'], device=try_gpu(), dtype=torch.float32)
+    cov= torch.tensor(embeddings['cov'], device=try_gpu(), dtype=torch.float32)
 
-# Baseline Network
-loss = nn.MSELoss()
-in_features = cmds.shape[1]
-out_features = cov.shape[1]
-net = nn.Sequential(nn.Linear(in_features, 128),
-                    nn.ReLU(),
-                    nn.Linear(128, 128),
-                    nn.ReLU(),
-                    nn.Linear(128, out_features))
-net = net.to(device=try_gpu())
-net.apply(my_init)
+    # Preprocess
+    sample_num = cmds.shape[0]
+    cmd_len = cmds.shape[1]
+    parameter_types = 26
+    processed_cmds = F.one_hot(cmds[:,0].long(), parameter_types)
+    for i in range(1, cmd_len):
+        if i % 2 == 0: # parameter index
+            processed_cmds = torch.cat((processed_cmds, F.one_hot(cmds[:,i].long(), parameter_types)), 1)
+        else: # parameter value
+            cmds[:,i] -= torch.mean(cmds[:,i])
+            cmds[:,i] /= torch.std(cmds[:,i])
+            cmds[:,i] = torch.nan_to_num(cmds[:,i], nan=0)
+            processed_cmds = torch.cat((processed_cmds, cmds[:,i].reshape((sample_num, 1))), 1)
 
-# Train
-num_epochs, lr, weight_decay, batch_size, patience, split = 1000, 5, 0, 64, 10, 0.8
-dataset = data.TensorDataset(cmds, cov)
-trainset_size = int(len(dataset)*0.8) 
-trainset, testset = data.random_split(dataset, [trainset_size, int(len(dataset)) - trainset_size])
-train(net, loss, trainset, testset, num_epochs, lr, weight_decay, batch_size, patience)
+    # Baseline Network
+    loss = nn.MSELoss()
+    in_features = processed_cmds.shape[1]
+    out_features = cov.shape[1]
+    net = nn.Sequential(nn.Linear(in_features, 256),
+                        nn.ReLU(),
+                        nn.Linear(256, 256),
+                        nn.ReLU(),
+                        nn.Linear(256, out_features))
+    net = net.to(device=try_gpu())
+    net.apply(my_init)
 
-print('here')
+    # Train
+    num_epochs, lr, weight_decay, batch_size, patience, split = 1000, 5, 0, 64, 10, 0.8
+    dataset = data.TensorDataset(processed_cmds, cov)
+    trainset_size = int(len(dataset)*0.8) 
+    trainset, testset = data.random_split(dataset, [trainset_size, int(len(dataset)) - trainset_size])
+    train(net, loss, trainset, testset, num_epochs, lr, weight_decay, batch_size, patience)
+
+    print('here')
