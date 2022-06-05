@@ -36,6 +36,7 @@ def GetReward(destID, pq9client, recordCov, covSum):
     binCov = binCov + '0' # The CodeCount ID starts from 1, so the first bit is useless
     for rawData in rawCov:
         binCov = binCov + bin(rawData)[2:].rjust(8, '0')
+    binCov = binCov[:len(recordCov)]
     reward = 0
     for i in range(len(recordCov)):
         if binCov[i] == '1' and recordCov[i] == 0:
@@ -76,8 +77,8 @@ if __name__ == '__main__':
     maxIter = 10000
     maxPayloadLength = 20
     covSum = 0 # initial value
-    codeCountNum = 716
-    recordCov = [0]*codeCountNum
+    codeCountNum = 714
+    recordCov = [0]*(codeCountNum + 1) # The CodeCount ID starts from 1
     embeddings = {'cmd':[], 'cov':[]}
     parameters = AddParameters('para.csv')
     pq9client = PQ9Client('localhost', '10000', 0.5)
