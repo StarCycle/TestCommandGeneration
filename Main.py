@@ -74,13 +74,14 @@ if __name__ == '__main__':
     # Initialization
     dest = 'COMMS'
     destID = 4
-    maxIter = 10000
+    maxIter = 5000
     maxPayloadLength = 20
     covSum = 0 # initial value
     codeCountNum = 714
     recordCov = [0]*(codeCountNum + 1) # The CodeCount ID starts from 1
     embeddings = {'cmd':[], 'cov':[]}
     parameters = AddParameters('para.csv')
+    curve = open('curve.txt', 'w')
     pq9client = PQ9Client('localhost', '10000', 0.5)
     pq9client.connect()
 
@@ -99,6 +100,7 @@ if __name__ == '__main__':
         embeddings['cov'].append(covEmbedding)
 		
         print(iter, covSum)
+        curve.write(str(covSum)+'\n')
 
     with open('dataset.json', 'w') as f:
         json.dump(embeddings, f)

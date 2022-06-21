@@ -1,7 +1,6 @@
-from PQ9Client import PQ9Client
 import csv
-from random import randint, choice, sample
 import json
+from PQ9Client import PQ9Client
 
 def AddParameters(paraFile):
     '''
@@ -30,7 +29,7 @@ def AddParameters(paraFile):
                 parameters[name]['enumSet'] = json.loads(row[5])
     return parameters, actions
 
-def CkeckCov(destID, pq9client, recordCov, covSum):
+def CheckCov(destID, pq9client, recordCov, covSum):
     # Retrieve coverage array from the target
     succes, rawCov = pq9client.processCommand(destID, [97, 1, 0])
     rawCov = rawCov[5:-2] # Throw away destination, payload size...etc
@@ -45,13 +44,15 @@ def CkeckCov(destID, pq9client, recordCov, covSum):
             recordCov[i] = 1
             covSum = covSum + 1
             reward = reward + 1
-    return reward, covSum, [int(value) for value in list(binCov)]
-
+    covByLastCmd = [int(value) for value in list(binCov)]
+    return reward, covSum, covByLastCmd
+	
 class MyEnv():
 
-    def __init__(self, destID, paraFile, maxPayloadLength, codeCountNum):
+    def __init__(self, destID, paraFile, maxSteps, maxPayloadLength, codeCountNum):
         self.destID = destID
-        self.maxPayloadLength = self.maxPayloadLength
+        self.maxSteps = maxSteps
+        self.maxPayloadLength = maxPayloadLength
         self.codeCountNum = codeCountNum
         self.covSum = 0 # Initial value
         self.state = [0]*(codeCountNum + maxPayloadLength*2)
@@ -63,42 +64,49 @@ class MyEnv():
 
     def reset(self):
         # Reset internal paramaters
+        self.steps = 0
         self.covSum = 0
         self.state = [0]*len(self.state)
         self.cmd = []
         self.recordCov = [0]*len(self.recordCov)
+        self.file = open('cmds.txt', 'w')
         # Reset the target board
-        succes, rawReply = pq9client.processCommand(self.destID, [19, 1])
+        succes, rawReply = self.pq9client.processCommand(self.destID, [19, 1])
         reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-        self.state[:codeCountNum] = self.recordCov[1:]
-        self.justReset = True
+        self.state[:self.codeCountNum] = self.recordCov[1:]
         return self.state
 
     def step(self, actionID):
         reward = 0
-        if self.justReset == True:
+        self.steps += 1
+        if self.cmd == []:
             if self.actions[actionID][0] == 'Service':
-                self.state[codeCountNum] = self.paras['Service']['index']
-                self.state[codeCountNum+1] = self.actions[actionID][1]
-                self.state[codeCountNum+2] = self.paras['Request']['index']
-                self.state[codeCountNum+3] = 1
+                self.state[self.codeCountNum] = self.actions[actionID][1]
+                self.state[self.codeCountNum+1] = self.actions[actionID][2]
+                self.state[self.codeCountNum+2] = self.paras['Request']['index']
+                self.state[self.codeCountNum+3] = 1
+                self.cmd = [self.actions[actionID][2], 1]
                 self.payloadLength = 2
-                self.justReset == False
         elif self.actions[actionID][0] == 'SendCmdNow':
-            succes, rawReply = pq9client.processCommand(self.destID, cmd)
+            succes, rawReply = self.pq9client.processCommand(self.destID, self.cmd)
+            self.file.write(str(self.cmd) + '\n')
             reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-            self.state[:codeCountNum] = self.recordCov[1:]
-            self.state[codeCountNum:] = 0
+            self.state = [0]*len(self.state)
+            self.state[:self.codeCountNum] = self.recordCov[1:]
             self.cmd = []
         else:
-            self.state[codeCountNum + 2*self.payloadLength] = self.actions[actionID][1]
-            self.state[codeCountNum + 2*self.payloadLength + 1] = self.actions[actionID][2]
+            self.state[self.codeCountNum + 2*self.payloadLength] = self.actions[actionID][1]
+            self.state[self.codeCountNum + 2*self.payloadLength + 1] = self.actions[actionID][2]
             self.cmd.append(self.actions[actionID][2])
             if len(self.cmd) >= self.maxPayloadLength:
-                succes, rawReply = pq9client.processCommand(self.destID, cmd)
+                succes, rawReply = self.pq9client.processCommand(self.destID, self.cmd)
+                self.file.write(str(self.cmd) + '\n')
                 reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-                self.state[:codeCountNum] = self.recordCov[1:]
-                self.state[codeCountNum:] = 0
+                self.state = [0]*len(self.state)
+                self.state[:self.codeCountNum] = self.recordCov[1:]
                 self.cmd = []
-        return self.state, reward, False, {}
+        if self.steps > self.maxSteps:
+            return self.state, reward, 1, {}
+        else:
+            return self.state, reward, 0, {}
 
