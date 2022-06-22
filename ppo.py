@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     learning_rate = 2.5e-4               # Initial learning rate
     total_timesteps = 1000000              # How many steps you interact with the env
-    num_env_steps = 512                  # How many steps you interact with the env before an update
+    num_env_steps = 256                  # How many steps you interact with the env before update
     num_update_steps = 4                 # How many times you update the neural networks after interation
     minibatch_size = 32                  # The batch size to update the neural networks
     gamma = 0.99                         # Decay rate of future rewards
@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     writer = SummaryWriter("runs")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    env = MyEnv(4, 'para.csv', 10000, 10, 714)
+    env = MyEnv(4, 'para.csv', 2560, 10, 714)
     # env = gym.make('Acrobot-v1')
     agent = Agent(env).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
@@ -103,9 +103,10 @@ if __name__ == "__main__":
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, done, info = env.step(action.cpu().numpy())
             cumu_rewards += reward
-            print("global step:", global_step, "cumulative rewards:", cumu_rewards)
+            print("global step:", global_step, "cumulative rewards:", cumu_rewards, "cov sum:", env.recordCov.count(1))
             if done == 1:
                 writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
+                writer.add_scalar("cov sum", env.recordCov.count(1), global_step)
                 next_obs = env.reset()
                 cumu_rewards = 0
             rewards[step] = torch.tensor(reward).to(device).view(-1) 

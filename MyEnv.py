@@ -6,7 +6,7 @@ def AddParameters(paraFile):
     '''
     Return a dict of parameters. Each parameter has its own dict.
     '''
-    parameters, actions = {}, [['SendCmdNow', 0, 0]]
+    parameters, actions = {}, []
     with open(paraFile, encoding = 'utf-8', errors = 'replace') as csvFile:
         csvReader = csv.reader(csvFile)
         index = -2
@@ -23,13 +23,17 @@ def AddParameters(paraFile):
             parameters[name]['size'] = int(row[3])
             parameters[name]['selectFrom'] = json.loads(row[4]) 
             for value in parameters[name]['selectFrom']:
-                actions.append([name, index, value])
+                if value not in actions:
+                    actions.append(value)
+            if name == 'Service':
+                services = parameters[name]['selectFrom']
             parameters[name]['enumSet'] = {}
             if row[5] != '':
                 parameters[name]['enumSet'] = json.loads(row[5])
-    return parameters, actions
+        actions.append(-1) # -1 means sending the command now
+    return parameters, actions, services
 
-def CheckCov(destID, pq9client, recordCov, covSum):
+def CheckCov(destID, pq9client, recordCov):
     # Retrieve coverage array from the target
     succes, rawCov = pq9client.processCommand(destID, [97, 1, 0])
     rawCov = rawCov[5:-2] # Throw away destination, payload size...etc
@@ -42,10 +46,9 @@ def CheckCov(destID, pq9client, recordCov, covSum):
     for i in range(len(recordCov)):
         if binCov[i] == '1' and recordCov[i] == 0:
             recordCov[i] = 1
-            covSum = covSum + 1
             reward = reward + 1
     covByLastCmd = [int(value) for value in list(binCov)]
-    return reward, covSum, covByLastCmd
+    return reward, covByLastCmd
 	
 class MyEnv():
 
@@ -54,59 +57,62 @@ class MyEnv():
         self.maxSteps = maxSteps
         self.maxPayloadLength = maxPayloadLength
         self.codeCountNum = codeCountNum
-        self.covSum = 0 # Initial value
-        self.state = [0]*(codeCountNum + maxPayloadLength*2)
+        self.paras, self.actions, self.services  = AddParameters(paraFile)
+        self.state = [0]*(codeCountNum + maxPayloadLength)
+        self.stateMin = [0]*(codeCountNum + maxPayloadLength)
+        self.stateMax = [1]*codeCountNum + [len(self.services) - 1] + [1] + [len(self.actions) - 1]*(maxPayloadLength-2)
         self.cmd = []
         self.recordCov = [0]*(self.codeCountNum + 1) # The CodeCount ID starts from 1
-        self.paras, self.actions = AddParameters(paraFile)
         self.pq9client = PQ9Client('localhost', '10000', 0.5)
         self.pq9client.connect()
+
+    def normalizedState(self):
+        outputState = []
+        for i in range(len(self.state)):
+            outputState.append((self.state[i] - self.stateMin[i]) / (self.stateMax[i] - self.stateMin[i]))
+        return outputState
 
     def reset(self):
         # Reset internal paramaters
         self.steps = 0
-        self.covSum = 0
         self.state = [0]*len(self.state)
         self.cmd = []
         self.recordCov = [0]*len(self.recordCov)
         self.file = open('cmds.txt', 'w')
         # Reset the target board
         succes, rawReply = self.pq9client.processCommand(self.destID, [19, 1])
-        reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+        reward, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov)
         self.state[:self.codeCountNum] = self.recordCov[1:]
-        return self.state
+        return self.normalizedState()
 
     def step(self, actionID):
         reward = 0
         self.steps += 1
-        if self.cmd == []:
-            if self.actions[actionID][0] == 'Service':
-                self.state[self.codeCountNum] = self.actions[actionID][1]
-                self.state[self.codeCountNum+1] = self.actions[actionID][2]
-                self.state[self.codeCountNum+2] = self.paras['Request']['index']
-                self.state[self.codeCountNum+3] = 1
-                self.cmd = [self.actions[actionID][2], 1]
-                self.payloadLength = 2
-        elif self.actions[actionID][0] == 'SendCmdNow':
+        if self.cmd == []: # Select service
+            serviceID = actionID % len(self.services)
+            self.state[self.codeCountNum] = serviceID
+            self.state[self.codeCountNum+1] = 1
+            self.cmd.append(self.services[serviceID])
+            self.cmd.append(1)
+        elif self.actions[actionID] == -1: # Send the command now
             succes, rawReply = self.pq9client.processCommand(self.destID, self.cmd)
-            self.file.write(str(self.cmd) + '\n')
-            reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+            self.file.write(' '.join(str(value) for value in self.cmd) + '\n')
+            reward, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov)
             self.state = [0]*len(self.state)
             self.state[:self.codeCountNum] = self.recordCov[1:]
             self.cmd = []
         else:
-            self.state[self.codeCountNum + 2*self.payloadLength] = self.actions[actionID][1]
-            self.state[self.codeCountNum + 2*self.payloadLength + 1] = self.actions[actionID][2]
-            self.cmd.append(self.actions[actionID][2])
+            self.state[self.codeCountNum + len(self.cmd)] = actionID
+            self.cmd.append(self.actions[actionID])
             if len(self.cmd) >= self.maxPayloadLength:
                 succes, rawReply = self.pq9client.processCommand(self.destID, self.cmd)
-                self.file.write(str(self.cmd) + '\n')
-                reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+                self.file.write(' '.join(str(value) for value in self.cmd) + '\n')
+                reward, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov)
                 self.state = [0]*len(self.state)
                 self.state[:self.codeCountNum] = self.recordCov[1:]
                 self.cmd = []
         if self.steps > self.maxSteps:
-            return self.state, reward, 1, {}
+            return self.normalizedState(), reward, 1, {}
         else:
-            return self.state, reward, 0, {}
+            return self.normalizedState(), reward, 0, {}
 
