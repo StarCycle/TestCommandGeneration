@@ -1,5 +1,6 @@
 import csv
 import json
+from random import randint
 from PQ9Client import PQ9Client
 
 def AddParameters(paraFile):
@@ -116,3 +117,18 @@ class MyEnv():
         else:
             return self.normalizedState(), reward, 0, {}
 
+
+    def randomBaseline(self):
+        iter = 5
+        cumuRewards = 0
+        covSum = 0
+        for i in range(iter): # run multiple times and record the average perfermonce
+            done = 0
+            self.reset()
+            while done == 0:
+                next_obs, reward, done, info = self.step( randint(0, len(self.actions)-1) )
+                cumuRewards += reward / iter
+                print('reward', reward, 'covSum', self.recordCov.count(1))
+            covSum += self.recordCov.count(1) / iter
+        print('cumuRewards', cumuRewards, 'covSum', covSum)
+			
