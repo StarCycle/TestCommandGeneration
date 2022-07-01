@@ -1,11 +1,12 @@
 import random
-import gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+# import gym
+from MyEnv import MyEnv
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -16,18 +17,21 @@ class Agent(nn.Module):
     def __init__(self, env):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 64)),
+            layer_init(nn.Linear(len(env.recordCov), 128)), # My environment
+            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 128)), # gym
             nn.ReLU(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(128, 128)),
             nn.ReLU(),
-            layer_init(nn.Linear(64, 1), std=1.0),
+            layer_init(nn.Linear(128, 1), std=1.0),
         )
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 64)),
+            layer_init(nn.Linear(len(env.recordCov), 128)), # My environment
+            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 128)), # gym
             nn.ReLU(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(128, 128)),
             nn.ReLU(),
-            layer_init(nn.Linear(64, env.action_space.n), std=0.01),
+            layer_init(nn.Linear(128, len(env.actions)), std=0.01), # My environment
+            # layer_init(nn.Linear(128, env.action_space.n), std=0.01),
         )
 
     def get_value(self, x):
@@ -42,22 +46,25 @@ class Agent(nn.Module):
 
 if __name__ == "__main__":
 
-    learning_rate = 2.5e-4               # Initial learning rate
-    num_env_steps = 512                  # How many steps you interact with the env in a round 
-    num_update_steps = 4                 # How many steps you update the neural networks in a round
+    learning_rate = 5e-4                 # Initial learning rate
+    total_timesteps = 100000              # How many steps you interact with the env
+    num_epoch_steps = 512 				 # How many steps you interact with the env before a reset
+    num_env_steps = 128                  # How many steps you interact with the env before an update
+    num_update_steps = 4                 # How many times you update the neural networks after interation
     minibatch_size = 32                  # The batch size to update the neural networks
-    total_timesteps = 50000              # How many steps you interact with the env
     gamma = 0.99                         # Decay rate of future rewards
     gae_lambda = 0.95                    # Parameter in advantage estimation
     clip_coef = 0.2                      # Parameter to clip the (p_new/p_old) ratio
-    ent_coef = 0.01                      # Weight of the entropy loss in the total loss
+    ent_coef = 0.05                      # Weight of the entropy loss in the total loss
     vf_coef = 0.5                        # Weight of the value loss in the total loss
     max_grad_norm = 0.5                  # max norm of the gradient vector
 
     writer = SummaryWriter("runs")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    env = gym.make('CartPole-v1')
+    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 714)
+    # env = gym.make('Acrobot-v1')
     agent = Agent(env).to(device)
+    # agent.load_state_dict(torch.load('Model'))
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
@@ -67,8 +74,9 @@ if __name__ == "__main__":
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
-    # Initialize storage
-    obs = torch.zeros((num_env_steps, env.observation_space.shape[0])).to(device)
+    # Initialize storage for a round
+    obs = torch.zeros((num_env_steps, len(env.recordCov))).to(device) # My environment
+    # obs = torch.zeros((num_env_steps, env.observation_space.shape[0])).to(device) # gym
     actions = torch.zeros(num_env_steps).to(device)
     logprobs = torch.zeros(num_env_steps).to(device)
     rewards = torch.zeros(num_env_steps).to(device)
@@ -77,21 +85,17 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(env.reset()).to(device)
     next_done = torch.zeros(1).to(device)
 
-    num_updates = total_timesteps // num_env_steps
     global_step = 0
-    for update in range(1, num_updates + 1):
-
-        # Annealing the learning rate.
-        frac = 1.0 - (update - 1.0) / num_updates
-        lrnow = frac * learning_rate
-        optimizer.param_groups[0]["lr"] = lrnow
-
-        for step in range(0, num_env_steps):
+    cumu_rewards = 0
+    num_rounds = total_timesteps // num_env_steps
+    for round in range(num_rounds):
+            
+        # ALGO LOGIC: action logic
+        for step in range(num_env_steps):
             global_step += 1
             obs[step] = next_obs
             dones[step] = next_done
-
-            # ALGO LOGIC: action logic
+                            
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(next_obs)
                 values[step] = value.flatten()
@@ -99,12 +103,17 @@ if __name__ == "__main__":
             logprobs[step] = logprob
 
             # TRY NOT TO MODIFY: execute the game and log data.
-            next_obs, reward, done, info = env.step(action.cpu().numpy())
+            next_obs, reward, done, info = env.step(action.cpu().numpy()) 
+            cumu_rewards += reward
+            print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'covsum', env.covSum)
             if done == 1:
+                writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
+                writer.add_scalar("cov sum", env.covSum, global_step)
                 next_obs = env.reset()
+                cumu_rewards = 0
             rewards[step] = torch.tensor(reward).to(device).view(-1) 
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor([done]).to(device)
-
+                            
         # bootstrap value if not done
         with torch.no_grad():
             next_value = agent.get_value(next_obs).reshape(1, -1)
@@ -123,7 +132,7 @@ if __name__ == "__main__":
         # Optimizing the policy and value network
         inds = np.arange(num_env_steps) 
         clipfracs = []
-        for epoch in range(num_update_steps):
+        for update in range(num_update_steps):
             np.random.shuffle(inds)
             for start in range(0, num_env_steps, minibatch_size):
                 end = start + minibatch_size
@@ -154,27 +163,25 @@ if __name__ == "__main__":
                 loss = pg_loss - ent_coef * entropy_loss + v_loss * vf_coef
 
                 # Update the neural networks
-                optimizer.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
-                optimizer.step()
+                # optimizer.zero_grad()
+                # loss.backward()
+                # nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
+                # optimizer.step()
 
         y_pred, y_true = values.cpu().numpy(), returns.cpu().numpy()
         var_y = np.var(y_true)
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
-        writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
-        writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
-        writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
-        writer.add_scalar("losses/entropy", entropy_loss.item(), global_step)
-        writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(), global_step)
-        writer.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
-        writer.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
-        writer.add_scalar("losses/explained_variance", explained_var, global_step)
+        writer.add_scalar("learning_rate", optimizer.param_groups[0]["lr"], global_step)
+        writer.add_scalar("value_loss", v_loss.item(), global_step)
+        writer.add_scalar("policy_loss", pg_loss.item(), global_step)
+        writer.add_scalar("entropy", entropy_loss.item(), global_step)
+        writer.add_scalar("old_approx_kl", old_approx_kl.item(), global_step)
+        writer.add_scalar("approx_kl", approx_kl.item(), global_step)
+        writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
+        writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
-        writer.add_scalar("dones_sum", dones.sum().item(), global_step)
-        print("step:", global_step, "dones_sum", dones.sum().item())
 
-    env.close()
+    torch.save(net.state_dict(), 'Model')
     writer.close()
