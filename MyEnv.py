@@ -52,6 +52,8 @@ class MyEnv():
         self.current_step += 1
         if self.current_step >= self.max_num_steps:
             done = True
+        if reward == 0:
+            reward = -1
         return self.recordCov, reward, done, {}
 
     def randomBaseline(self):

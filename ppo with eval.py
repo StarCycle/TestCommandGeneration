@@ -14,49 +14,61 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 class Agent(nn.Module):
-    def __init__(self, env, num_nn, critic_std, actor_std):
+    def __init__(self, env):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
+            layer_init(nn.Linear(len(env.recordCov), 128)), # My environment
+            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 128)), # gym
             nn.ReLU(),
-            layer_init(nn.Linear(num_nn, num_nn)),
+            layer_init(nn.Linear(128, 128)),
             nn.ReLU(),
-            layer_init(nn.Linear(num_nn, 1), std=critic_std),
+            layer_init(nn.Linear(128, 1), std=1.0),
         )
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
+            layer_init(nn.Linear(len(env.recordCov), 128)), # My environment
+            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 128)), # gym
             nn.ReLU(),
-            layer_init(nn.Linear(num_nn, num_nn)),
+            layer_init(nn.Linear(128, 128)),
             nn.ReLU(),
-            layer_init(nn.Linear(num_nn, len(env.actions)), std=actor_std), # My environment
-            # layer_init(nn.Linear(num_nn, env.action_space.n), std=actor_std),
+            layer_init(nn.Linear(128, len(env.actions)), std=0.01), # My environment
+            # layer_init(nn.Linear(128, env.action_space.n), std=0.01),
         )
 
     def get_value(self, x):
         return self.critic(x)
 
-    def get_action_and_value(self, x, action=None):
+    def get_action_and_value(self, eval, x, action=None):
         logits = self.actor(x)
         probs = Categorical(logits=logits)
         if action is None:
-            action = probs.sample()
+            if eval == False:
+                action = probs.sample()
+            elif eval == True:
+                action = torch.argmax(logits)
         return action, probs.log_prob(action), probs.entropy(), self.critic(x)
 
-def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn, critic_std, actor_std, num_epoch_steps):
+if __name__ == "__main__":
 
-    learning_rate = 5e-4
-    total_timesteps = 150000              # How many steps you interact with the env
+    learning_rate = 5e-4                 # Initial learning rate
+    total_timesteps = 100000             # How many steps you interact with the env
+    num_epoch_steps = 512 				 # How many steps you interact with the env before a reset
     num_env_steps = 128                  # How many steps you interact with the env before an update
     num_update_steps = 4                 # How many times you update the neural networks after interation
+    eval_epoch = 5 						 # How many epochs you interact with the env before an evaluation
+    minibatch_size = 32                  # The batch size to update the neural networks
+    gamma = 0.99                         # Decay rate of future rewards
     gae_lambda = 0.95                    # Parameter in advantage estimation
     clip_coef = 0.2                      # Parameter to clip the (p_new/p_old) ratio
+    ent_coef = 0.05                      # Weight of the entropy loss in the total loss
+    vf_coef = 0.5                        # Weight of the value loss in the total loss
     max_grad_norm = 0.5                  # max norm of the gradient vector
 
-    writer = SummaryWriter('runs/' + name)
+    writer = SummaryWriter("runs/lr5e-4 ent_coef0.05")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = Agent(env, num_nn, critic_std, actor_std).to(device)
+    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 714)
+    # env = gym.make('Acrobot-v1')
+    agent = Agent(env).to(device)
+    # agent.load_state_dict(torch.load('Model'))
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
@@ -79,6 +91,8 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
 
     global_step = 0
     cumu_rewards = 0
+    epoch = 0
+    eval = True
     num_rounds = total_timesteps // num_env_steps
     for round in range(num_rounds):
             
@@ -89,7 +103,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             dones[step] = next_done
                             
             with torch.no_grad():
-                action, logprob, _, value = agent.get_action_and_value(next_obs)
+                action, logprob, _, value = agent.get_action_and_value(eval, next_obs)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
@@ -97,15 +111,21 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, done, info = env.step(action.cpu().numpy()) 
             cumu_rewards += reward
-            print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'covsum', env.covSum)
             if done == 1:
-                writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
-                writer.add_scalar("cov sum", env.covSum, global_step)
+                if eval == True:
+                    print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'covsum', env.covSum)
+                    writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
+                    writer.add_scalar("cov sum", env.covSum, global_step)
                 next_obs = env.reset()
+                epoch += 1
                 cumu_rewards = 0
+                if epoch % eval_epoch == 0:
+                    eval = True
+                else:
+                    eval = False
             rewards[step] = torch.tensor(reward).to(device).view(-1) 
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor([done]).to(device)
-	
+                            
         # bootstrap value if not done
         with torch.no_grad():
             next_value = agent.get_value(next_obs).reshape(1, -1)
@@ -122,26 +142,28 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             returns = advantages + values
 
         # Optimizing the policy and value network
-        inds = np.arange(num_env_steps)		
+        inds = np.arange(num_env_steps) 
         clipfracs = []
         for update in range(num_update_steps):
-            approx_kl = []
             np.random.shuffle(inds)
             for start in range(0, num_env_steps, minibatch_size):
                 end = start + minibatch_size
                 minds = inds[start:end]
-                _, newlogprob, entropy, newvalue = agent.get_action_and_value(obs[minds], actions.long()[minds])
+                _, newlogprob, entropy, newvalue = agent.get_action_and_value(eval, obs[minds], actions.long()[minds])
                 logratio = newlogprob - logprobs[minds]
                 ratio = logratio.exp()
 
                 with torch.no_grad():
                     # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                    approx_kl += [((ratio - 1) - logratio).mean()]
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
                     clipfracs += [((ratio - 1.0).abs() > clip_coef).float().mean().item()]
 
+                madvantages = advantages[minds]
+
                 # Policy loss
-                pg_loss1 = -advantages[minds] * ratio
-                pg_loss2 = -advantages[minds] * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef) 
+                pg_loss1 = -madvantages * ratio
+                pg_loss2 = -madvantages * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef) 
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
@@ -153,15 +175,12 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
                 loss = pg_loss - ent_coef * entropy_loss + v_loss * vf_coef
 
                 # Update the neural networks
-                optimizer.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
-                optimizer.step()
-		
-		    # Annealing the learning rate, if KL is too high
-            if np.mean(approx_kl) > target_kl:
-                optimizer.param_groups[0]["lr"] *= 0.99
-		
+                if eval == False:
+                    optimizer.zero_grad()
+                    loss.backward()
+                    nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
+                    optimizer.step()
+
         y_pred, y_true = values.cpu().numpy(), returns.cpu().numpy()
         var_y = np.var(y_true)
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
@@ -171,38 +190,11 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         writer.add_scalar("value_loss", v_loss.item(), global_step)
         writer.add_scalar("policy_loss", pg_loss.item(), global_step)
         writer.add_scalar("entropy", entropy_loss.item(), global_step)
-        writer.add_scalar("approx_kl", np.mean(approx_kl), global_step)
+        writer.add_scalar("old_approx_kl", old_approx_kl.item(), global_step)
+        writer.add_scalar("approx_kl", approx_kl.item(), global_step)
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
-        for name, param in agent.named_parameters():
-            writer.add_histogram(tag=name+'_grad', values=param.grad, global_step=global_step)
-            writer.add_histogram(tag=name+'_data', values=param.data, global_step=global_step)
 
+    torch.save(net.state_dict(), 'Model')
     writer.close()
-
-if __name__ == "__main__":
-
-    target_kl = [0.01]		# Max KL divergence
-    minibatch_size = [32]	# The batch size to update the neural network
-    gamma = [0.9]
-    ent_coef = [0.01]	    # Weight of the entropy loss in the total loss
-    vf_coef = [0.5]			# Weight of the value loss in the total loss
-    num_nn = [512, 1024]
-    critic_std = [1]
-    actor_std = [0.01]
-    num_epoch_steps = 512	# How many steps you interact with the env before a reset
-
-    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 714)
-    # env = gym.make('Acrobot-v1')
-
-    for tk in target_kl:
-        for bs in minibatch_size:
-            for ga in gamma:
-                for ef in ent_coef:
-                    for vf in vf_coef:
-                        for num in num_nn:
-                            for cstd in critic_std:
-                                for astd in actor_std:
-                                    name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)+'_num'+str(num)+'_cs'+str(cstd)+'_as'+str(astd)
-                                    train(env, name, tk, bs, ga, ef, vf, num, cstd, astd, num_epoch_steps)
