@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
-# import gym
 from MyEnv import MyEnv
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -16,9 +15,9 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 class Agent(nn.Module):
     def __init__(self, env, num_nn, critic_std, actor_std):
         super().__init__()
+        self.action_space = env.action_space
         self.critic = nn.Sequential(
             layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
             nn.ReLU(),
             layer_init(nn.Linear(num_nn, num_nn)),
             nn.ReLU(),
@@ -26,12 +25,10 @@ class Agent(nn.Module):
         )
         self.actor = nn.Sequential(
             layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
             nn.ReLU(),
             layer_init(nn.Linear(num_nn, num_nn)),
             nn.ReLU(),
-            layer_init(nn.Linear(num_nn, len(env.actions)), std=actor_std), # My environment
-            # layer_init(nn.Linear(num_nn, env.action_space.n), std=actor_std),
+            layer_init(nn.Linear(num_nn, sum(self.action_space)), std=actor_std), # My environment
         )
 
     def get_value(self, x):
@@ -39,20 +36,23 @@ class Agent(nn.Module):
 
     def get_action_and_value(self, x, action=None):
         logits = self.actor(x)
-        probs = Categorical(logits=logits)
+        split_logits = torch.split(logits, self.action_space, dim=1)
+        multi_categoricals = [Categorical(logits=logits) for logits in split_logits]
         if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
+            action = torch.stack([categorical.sample() for categorical in multi_categoricals])
+        logprob = torch.stack([categorical.log_prob(a) for a, categorical in zip(action, multi_categoricals)])
+        entropy = torch.stack([categorical.entropy() for categorical in multi_categoricals])
+        return action, logprob.sum(0), entropy.sum(0), self.critic(x)
 
 def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn, critic_std, actor_std, num_epoch_steps):
 
     learning_rate = 5e-4
-    total_timesteps = 150000              # How many steps you interact with the env
-    num_env_steps = 128                  # How many steps you interact with the env before an update
-    num_update_steps = 4                 # How many times you update the neural networks after interation
-    gae_lambda = 0.95                    # Parameter in advantage estimation
-    clip_coef = 0.2                      # Parameter to clip the (p_new/p_old) ratio
-    max_grad_norm = 0.5                  # max norm of the gradient vector
+    total_timesteps = 10000000     # How many steps you interact with the env
+    num_env_steps = 128         # How many steps you interact with the env before an update
+    num_update_steps = 4       # How many times you update the neural networks after interation
+    gae_lambda = 0.95             # Parameter in advantage estimation
+    clip_coef = 0.2                    # Parameter to clip the (p_new/p_old) ratio
+    max_grad_norm = 0.5         # max norm of the gradient vector
 
     writer = SummaryWriter('runs/' + name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -68,8 +68,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
 
     # Initialize storage for a round
     obs = torch.zeros((num_env_steps, len(env.recordCov))).to(device) # My environment
-    # obs = torch.zeros((num_env_steps, env.observation_space.shape[0])).to(device) # gym
-    actions = torch.zeros(num_env_steps).to(device)
+    actions = torch.zeros(num_env_steps, len(env.action_space)).to(device)
     logprobs = torch.zeros(num_env_steps).to(device)
     rewards = torch.zeros(num_env_steps).to(device)
     dones = torch.zeros(num_env_steps).to(device)
@@ -89,7 +88,8 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             dones[step] = next_done
                             
             with torch.no_grad():
-                action, logprob, _, value = agent.get_action_and_value(next_obs)
+                action, logprob, _, value = agent.get_action_and_value(next_obs.reshape((1, -1)))
+                action = action.reshape(-1)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
@@ -98,7 +98,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             next_obs, reward, done, info = env.step(action.cpu().numpy()) 
             cumu_rewards += reward
             print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'covsum', env.covSum)
-            if done == 1:
+            if done == True:
                 writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
                 writer.add_scalar("cov sum", env.covSum, global_step)
                 next_obs = env.reset()
@@ -125,23 +125,22 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         inds = np.arange(num_env_steps)		
         clipfracs = []
         for update in range(num_update_steps):
-            approx_kl = []
             np.random.shuffle(inds)
             for start in range(0, num_env_steps, minibatch_size):
                 end = start + minibatch_size
                 minds = inds[start:end]
-                _, newlogprob, entropy, newvalue = agent.get_action_and_value(obs[minds], actions.long()[minds])
+                _, newlogprob, entropy, newvalue = agent.get_action_and_value(obs[minds], actions.long()[minds].T)
                 logratio = newlogprob - logprobs[minds]
                 ratio = logratio.exp()
 
                 with torch.no_grad():
                     # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                    approx_kl += [((ratio - 1) - logratio).mean()]
+                    approx_kl = ((ratio - 1) - logratio).mean()
                     clipfracs += [((ratio - 1.0).abs() > clip_coef).float().mean().item()]
 
                 # Policy loss
-                pg_loss1 = -advantages[minds] * ratio
-                pg_loss2 = -advantages[minds] * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef) 
+                pg_loss1 = - advantages[minds] * ratio
+                pg_loss2 = - advantages[minds] * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef) 
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
@@ -158,8 +157,8 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
                 nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
                 optimizer.step()
 		
-		    # Annealing the learning rate, if KL is too high
-            if np.mean(approx_kl) > target_kl:
+            # Annealing the learning rate, if KL is too high
+            if approx_kl > target_kl:
                 optimizer.param_groups[0]["lr"] *= 0.99
 		
         y_pred, y_true = values.cpu().numpy(), returns.cpu().numpy()
@@ -171,7 +170,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         writer.add_scalar("value_loss", v_loss.item(), global_step)
         writer.add_scalar("policy_loss", pg_loss.item(), global_step)
         writer.add_scalar("entropy", entropy_loss.item(), global_step)
-        writer.add_scalar("approx_kl", np.mean(approx_kl), global_step)
+        writer.add_scalar("approx_kl", approx_kl.item(), global_step)
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
@@ -179,22 +178,22 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             writer.add_histogram(tag=name+'_grad', values=param.grad, global_step=global_step)
             writer.add_histogram(tag=name+'_data', values=param.data, global_step=global_step)
 
+    torch.save(agent.state_dict(), 'Model_'+name)
     writer.close()
 
 if __name__ == "__main__":
 
-    target_kl = [0.01]		# Max KL divergence
-    minibatch_size = [32]	# The batch size to update the neural network
+    target_kl = [0.02]	    # Max KL divergence
+    minibatch_size = [32]   # The batch size to update the neural network
     gamma = [0.9]
     ent_coef = [0.01]	    # Weight of the entropy loss in the total loss
-    vf_coef = [0.5]			# Weight of the value loss in the total loss
-    num_nn = [512, 1024]
+    vf_coef = [0.5]	        # Weight of the value loss in the total loss
+    num_nn = [2048]
     critic_std = [1]
     actor_std = [0.01]
-    num_epoch_steps = 512	# How many steps you interact with the env before a reset
+    num_epoch_steps = 10000    # How many steps you interact with the env before a reset
 
-    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 714)
-    # env = gym.make('Acrobot-v1')
+    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 20, num_epoch_steps, 631)
 
     for tk in target_kl:
         for bs in minibatch_size:

@@ -69,13 +69,26 @@ class PQ9Client:
         string = '[send to ' + command['dest'] + ' at {:.3f}'.format(time()-self.startTime) + ']\t\t' + command['data']
         self.file.write(string + '\n')
         succes, msg = self.getFrame()
+        trialNum = 1
         while not succes:
             string = '[no response from ' + command['dest'] + ' at {:.3f}'.format(time()-self.startTime) + '] '
             self.file.write(string + '\n')
+            if trialNum > 10:
+                return False, []
             print('No response, retrying...')
             self.sendFrame(command)
             succes, msg = self.getFrame()
+            trialNum += 1
         msg = json.loads(msg['_raw_'])
         string = '[receive from ' + command['dest'] + ' at {:.3f}'.format(time()-self.startTime) + ']\t' + ' '.join(str(value) for value in msg)
         self.file.write(string + '\n')
         return succes, msg
+
+    def resetEGSE(self):
+        command = {}
+        command['_send_'] = 'SendRaw'
+        command['dest'] = str(19)
+        command['src'] = '8'
+        command['data'] = '0'
+        self.sendFrame(command)
+        self.file.write('[Reset EGSE]\n')
