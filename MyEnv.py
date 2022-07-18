@@ -33,7 +33,8 @@ def CheckCov(destID, pq9client, recordCov, covSum):
     binCov = binCov + '0' # The CodeCount ID starts from 1, so the first bit is useless
     for rawData in rawCov:
         binCov = binCov + bin(rawData)[2:].rjust(8, '0')
-    binCov = binCov[:len(recordCov)]
+    if len(binCov) < len(recordCov):
+        return False, 0, covSum, []
     reward = 0
     for i in range(len(recordCov)):
         if binCov[i] == '1' and recordCov[i] == 0:
@@ -64,8 +65,7 @@ class MyEnv():
         self.current_step = 0
         self.recordCov = [0]*len(self.recordCov)
         # Reset the target board
-        self.pq9client.resetEGSE()
-        succes, rawReply = self.pq9client.processCommand(self.destID, [19, 1])
+        self.pq9client.reset(self.destID)
         succes, reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
         return self.recordCov
 

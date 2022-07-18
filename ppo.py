@@ -47,7 +47,7 @@ class Agent(nn.Module):
 def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn, critic_std, actor_std, num_epoch_steps):
 
     learning_rate = 5e-4
-    total_timesteps = 10000000     # How many steps you interact with the env
+    total_timesteps = 200000     # How many steps you interact with the env
     num_env_steps = 128         # How many steps you interact with the env before an update
     num_update_steps = 4       # How many times you update the neural networks after interation
     gae_lambda = 0.95             # Parameter in advantage estimation
@@ -183,17 +183,17 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
 
 if __name__ == "__main__":
 
-    target_kl = [0.02]	    # Max KL divergence
+    target_kl = [0.02, 0.1]	# Max KL divergence
     minibatch_size = [32]   # The batch size to update the neural network
-    gamma = [0.9]
-    ent_coef = [0.01]	    # Weight of the entropy loss in the total loss
+    gamma = [0.9, 0.95]
+    ent_coef = [0.01, 0.05]	# Weight of the entropy loss in the total loss
     vf_coef = [0.5]	        # Weight of the value loss in the total loss
-    num_nn = [2048]
+    num_nn = [1024, 2048]
     critic_std = [1]
     actor_std = [0.01]
-    num_epoch_steps = 10000    # How many steps you interact with the env before a reset
+    num_epoch_steps = 128    # How many steps you interact with the env before a reset
 
-    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 20, num_epoch_steps, 631)
+    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 3, num_epoch_steps, 631)
 
     for tk in target_kl:
         for bs in minibatch_size:
