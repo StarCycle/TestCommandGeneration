@@ -1,7 +1,10 @@
 Space System Name,Service,Command Name,Field Type,Parameter,Select From,Size,,,,,,,,
-/Delfi-PQ,Ping,Ping,Command,,,,,/Delfi-PQ,Housekeeping,Housekeeping,Command,,,
-,,,Argument,Service,[17],8,,,,,Argument,Service,[3],8
-,,,Argument,Request,[1],8,,,,,Argument,Request,[1],8
+/Delfi-PQ,Ping,Ping,Command,,,,,,,,,,,
+,,,Argument,Service,[17],8,,,,,,,,8
+,,,Argument,Request,[1],8,,,,,,,,8
+/Delfi-PQ,Housekeeping,Housekeeping,Command,,,,,,,,,,,
+,,,Argument,Service,[3],8,,,,,,,,
+,,,Argument,Request,[1],8,,,,,,,,
 /Delfi-PQ/COMMS,Radio,SimpleRadioOps,Command,,,,,,,,,,,
 ,,,Argument,Service,[25],8,,,,,,,,
 ,,,Argument,Request,[1],8,,,,,,,,

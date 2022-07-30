@@ -17,7 +17,7 @@ class Agent(nn.Module):
     def __init__(self, env, num_nn, critic_std, actor_std):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
+            layer_init(nn.Linear(len(env.recordCov + env.history), num_nn)), # My environment
             # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
             nn.ReLU(),
             layer_init(nn.Linear(num_nn, num_nn)),
@@ -25,7 +25,7 @@ class Agent(nn.Module):
             layer_init(nn.Linear(num_nn, 1), std=critic_std),
         )
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
+            layer_init(nn.Linear(len(env.recordCov + env.history), num_nn)), # My environment
             # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
             nn.ReLU(),
             layer_init(nn.Linear(num_nn, num_nn)),
@@ -47,7 +47,7 @@ class Agent(nn.Module):
 def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn, critic_std, actor_std, num_epoch_steps):
 
     learning_rate = 5e-4
-    total_timesteps = 150000              # How many steps you interact with the env
+    total_timesteps = 50000              # How many steps you interact with the env
     num_env_steps = 128                  # How many steps you interact with the env before an update
     num_update_steps = 4                 # How many times you update the neural networks after interation
     gae_lambda = 0.95                    # Parameter in advantage estimation
@@ -67,7 +67,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
     torch.backends.cudnn.deterministic = True
 
     # Initialize storage for a round
-    obs = torch.zeros((num_env_steps, len(env.recordCov))).to(device) # My environment
+    obs = torch.zeros((num_env_steps, len(env.recordCov + env.history))).to(device) # My environment
     # obs = torch.zeros((num_env_steps, env.observation_space.shape[0])).to(device) # gym
     actions = torch.zeros(num_env_steps).to(device)
     logprobs = torch.zeros(num_env_steps).to(device)
@@ -97,10 +97,9 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, done, info = env.step(action.cpu().numpy()) 
             cumu_rewards += reward
-            print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'covsum', env.covSum)
+            print("global step:", global_step, "reward", reward, "average clc per loop:", cumu_rewards/num_epoch_steps*1000)
             if done == 1:
-                writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
-                writer.add_scalar("cov sum", env.covSum, global_step)
+                writer.add_scalar("average clc per loop", cumu_rewards/num_epoch_steps*1000, global_step)
                 next_obs = env.reset()
                 cumu_rewards = 0
             rewards[step] = torch.tensor(reward).to(device).view(-1) 
@@ -175,25 +174,22 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
-        for name, param in agent.named_parameters():
-            writer.add_histogram(tag=name+'_grad', values=param.grad, global_step=global_step)
-            writer.add_histogram(tag=name+'_data', values=param.data, global_step=global_step)
 
     writer.close()
 
 if __name__ == "__main__":
 
-    target_kl = [0.01]		# Max KL divergence
+    target_kl = [0.02]		# Max KL divergence
     minibatch_size = [32]	# The batch size to update the neural network
-    gamma = [0.9]
-    ent_coef = [0.01]	    # Weight of the entropy loss in the total loss
+    gamma = [0.9, 0.99]
+    ent_coef = [0.1, 0.5]	    # Weight of the entropy loss in the total loss
     vf_coef = [0.5]			# Weight of the value loss in the total loss
-    num_nn = [512, 1024]
+    num_nn = [2048]
     critic_std = [1]
     actor_std = [0.01]
     num_epoch_steps = 512	# How many steps you interact with the env before a reset
 
-    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 714)
+    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
     # env = gym.make('Acrobot-v1')
 
     for tk in target_kl:

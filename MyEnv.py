@@ -1,7 +1,7 @@
 from Parser import Parser
 from PQ9Client import PQ9Client
 from random import randint
-from time import sleep
+from time import time
 
 def CheckCov(destID, pq9client, recordCov, covSum):
     # Retrieve coverage array from the target
@@ -19,15 +19,26 @@ def CheckCov(destID, pq9client, recordCov, covSum):
             covSum = covSum + 1
             reward = reward + 1
     return reward, covSum, [int(value) for value in list(binCov)]
+	
+def CheckLoopCount(destID, pq9client):
+    succes, rawLoopCount = pq9client.processCommand(destID, [97, 1, 1])
+    rawLoopCount = rawLoopCount[5:9]
+    binLoopCount = ''
+    for rawData in rawLoopCount:
+        binLoopCount = binLoopCount + bin(rawData)[2:].rjust(8, '0')
+    loopCount = int(binLoopCount, 2)
+    return loopCount
 
 class MyEnv():
 
     def __init__(self, dest, destID, paraFile, cmdFile, replyFile, num_epoch_steps, codeCountNum):
         self.destID = destID
         self.parser = Parser(paraFile, cmdFile, replyFile)
+        self.lastTime = time()
         self.codeCountNum = codeCountNum
         self.covSum = 0 # Initial value
         self.recordCov = [0]*(self.codeCountNum + 1) # The CodeCount ID starts from 1
+        self.history = [0]*16
         self.actions = self.parser.ListAllCommands(dest)
         self.max_num_steps = num_epoch_steps
         self.current_step = 0
@@ -39,22 +50,28 @@ class MyEnv():
         self.covSum = 0
         self.current_step = 0
         self.recordCov = [0]*len(self.recordCov)
+        self.history = [0]*len(self.history)
         # Reset the target board
         succes, rawReply = self.pq9client.processCommand(self.destID, [19, 1, 1])
         reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-        return self.recordCov
+        return self.recordCov+self.history
 
     def step(self, actionID):
+        self.history.pop(0)
+        self.history.append(actionID / len(self.actions))
         reward = 0
         done = False
         succes, rawReply = self.pq9client.processCommand(self.destID, self.actions[actionID]['rawPayload'])
-        reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+        newCov, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+        loopCount = CheckLoopCount(self.destID, self.pq9client)
+        reward = 48000 / (loopCount/(time() - self.lastTime)) # How many clock period are used in a loop (unit: 1k)
+        self.lastTime = time()
         self.current_step += 1
         if self.current_step >= self.max_num_steps:
             done = True
         if reward == 0:
             reward = -1
-        return self.recordCov, reward, done, {}
+        return self.recordCov+self.history, reward, done, {}
 
     def randomBaseline(self):
         file = open('curve.txt', 'w')
