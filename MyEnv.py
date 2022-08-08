@@ -54,7 +54,7 @@ class MyEnv():
         # Reset the target board
         succes, rawReply = self.pq9client.processCommand(self.destID, [19, 1, 1])
         reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-        return self.recordCov+self.history
+        return self.recordCov
 
     def step(self, actionID):
         self.history.pop(0)
@@ -71,7 +71,7 @@ class MyEnv():
             done = True
         if reward == 0:
             reward = -1
-        return self.recordCov+self.history, reward, done, {}
+        return self.recordCov, reward, done, {}
 
     def randomBaseline(self):
         file = open('curve.txt', 'w')
