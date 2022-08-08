@@ -43,13 +43,17 @@ class GNN_Agent(torch.nn.Module):
         nodeChannels = self.nodes.shape[1] + 1 # Add Code cov info 
         self.graphConv = GatedGraphConv(nodeChannels, 3)
         self.critic = nn.Sequential(
-                      nn.Linear(len(self.count2label), 4096),
+                      nn.Linear(nodeNum*nodeChannels, 4096),
                       nn.Tanh(),
-                      nn.Linear(4096, 1))
+                      nn.Linear(4096, 512),
+					  nn.Tanh(),
+					  nn.Linear(512, 1))
         self.actor = nn.Sequential(
-                     nn.Linear(len(self.count2label), 4096),
+                     nn.Linear(nodeNum*nodeChannels, 4096),
                      nn.Tanh(),
-                     nn.Linear(4096, len(env.actions)))
+					 nn.Linear(4096, 512),
+					 nn.Tanh(),
+                     nn.Linear(512, len(env.actions)))
         for i, l in enumerate(self.critic):
             if type(l) == nn.Linear:
                 nn.init.xavier_normal_(l.weight)
@@ -74,16 +78,16 @@ class GNN_Agent(torch.nn.Module):
             nodesInput = torch.cat((nodesInput, temp), 0)
             temp = self.edges + i*self.nodes.shape[0]
             edgesInput = torch.cat((edgesInput, temp), 1)
-        # x = self.graphConv(nodesInput, edgesInput)
-        x = nodesInput.reshape((batchSize, -1)) # changed
+        x = self.graphConv(nodesInput, edgesInput)
+        x = x.reshape((batchSize, -1))
         return x
 		
     def get_value(self, x):
-        return self.critic(x)
+        return self.critic(self.GNN(x))
 
     def get_action_and_value(self, x, action=None):
-        logits = self.actor(x)
+        logits = self.actor(self.GNN(x))
         probs = Categorical(logits=logits)
         if action is None:
             action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
+        return action, probs.log_prob(action), probs.entropy(), self.critic(self.GNN(x))
