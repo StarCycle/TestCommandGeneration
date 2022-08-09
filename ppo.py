@@ -3,51 +3,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
-# import gym
+from GNN_Agent import GNN_Agent
 from MyEnv import MyEnv
 
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
-
-class Agent(nn.Module):
-    def __init__(self, env, num_nn, critic_std, actor_std):
-        super().__init__()
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, num_nn)),
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, 1), std=critic_std),
-        )
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            # layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), num_nn)), # gym
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, num_nn)),
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, len(env.actions)), std=actor_std), # My environment
-            # layer_init(nn.Linear(num_nn, env.action_space.n), std=actor_std),
-        )
-
-    def get_value(self, x):
-        return self.critic(x)
-
-    def get_action_and_value(self, x, action=None):
-        logits = self.actor(x)
-        probs = Categorical(logits=logits)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
-
-def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn, critic_std, actor_std, num_epoch_steps):
+def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_epoch_steps):
 
     learning_rate = 5e-4
-    total_timesteps = 150000              # How many steps you interact with the env
+    total_timesteps = 50000              # How many steps you interact with the env
     num_env_steps = 128                  # How many steps you interact with the env before an update
     num_update_steps = 4                 # How many times you update the neural networks after interation
     gae_lambda = 0.95                    # Parameter in advantage estimation
@@ -56,7 +19,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
 
     writer = SummaryWriter('runs/' + name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = Agent(env, num_nn, critic_std, actor_std).to(device)
+    agent = GNN_Agent(env, 'graph.json').to(device)
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
@@ -95,12 +58,12 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             logprobs[step] = logprob
 
             # TRY NOT TO MODIFY: execute the game and log data.
-            next_obs, reward, done, info = env.step(action.cpu().numpy()) 
+            next_obs, reward, done, info = env.step(action.item()) 
             cumu_rewards += reward
-            print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'covsum', env.covSum)
+            print("global step:", global_step, "reward", reward, "covSum", env.covSum)
             if done == 1:
-                writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
-                writer.add_scalar("cov sum", env.covSum, global_step)
+                writer.add_scalar("covSum", env.covSum, global_step)
+                writer.add_scalar("cumu_rewards", cumu_rewards, global_step)
                 next_obs = env.reset()
                 cumu_rewards = 0
             rewards[step] = torch.tensor(reward).to(device).view(-1) 
@@ -175,34 +138,24 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
-        for name, param in agent.named_parameters():
-            writer.add_histogram(tag=name+'_grad', values=param.grad, global_step=global_step)
-            writer.add_histogram(tag=name+'_data', values=param.data, global_step=global_step)
 
     writer.close()
 
 if __name__ == "__main__":
 
-    target_kl = [0.01]		# Max KL divergence
+    target_kl = [0.02]		# Max KL divergence
     minibatch_size = [32]	# The batch size to update the neural network
     gamma = [0.9]
-    ent_coef = [0.01]	    # Weight of the entropy loss in the total loss
+    ent_coef = [0.1, 0.01]	    # Weight of the entropy loss in the total loss
     vf_coef = [0.5]			# Weight of the value loss in the total loss
-    num_nn = [512, 1024]
-    critic_std = [1]
-    actor_std = [0.01]
     num_epoch_steps = 512	# How many steps you interact with the env before a reset
 
-    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 714)
-    # env = gym.make('Acrobot-v1')
+    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
 
     for tk in target_kl:
         for bs in minibatch_size:
             for ga in gamma:
                 for ef in ent_coef:
                     for vf in vf_coef:
-                        for num in num_nn:
-                            for cstd in critic_std:
-                                for astd in actor_std:
-                                    name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)+'_num'+str(num)+'_cs'+str(cstd)+'_as'+str(astd)
-                                    train(env, name, tk, bs, ga, ef, vf, num, cstd, astd, num_epoch_steps)
+                        name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)
+                        train(env, name, tk, bs, ga, ef, vf, num_epoch_steps)
