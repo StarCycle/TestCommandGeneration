@@ -1,5 +1,5 @@
 Model
-/runs
+/runs*
 __pycache__
 *.json
 *.txt
