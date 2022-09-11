@@ -7,10 +7,9 @@ from torch.utils.tensorboard import SummaryWriter
 from GNN_Agent import GNN_Agent
 from MyEnv import MyEnv
 
-def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_epoch_steps):
+def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learning_rate, out_channels, gnn_layers, num_epoch_steps):
 
-    learning_rate = 5e-4
-    total_timesteps = 50000              # How many steps you interact with the env
+    total_timesteps = 500000             # How many steps you interact with the env
     num_env_steps = 128                  # How many steps you interact with the env before an update
     num_update_steps = 4                 # How many times you update the neural networks after interation
     gae_lambda = 0.95                    # Parameter in advantage estimation
@@ -19,7 +18,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_ep
 
     writer = SummaryWriter('runs/' + name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = GNN_Agent(env, 'graph.json').to(device)
+    agent = GNN_Agent(env, 'graph.json', out_channels, gnn_layers, device).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
@@ -30,7 +29,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_ep
     torch.backends.cudnn.deterministic = True
 
     # Initialize storage for a round
-    obs = torch.zeros((num_env_steps, len(env.recordCov))).to(device) # My environment
+    obs = torch.zeros((num_env_steps, len(env.recordCov+env.actions))).to(device) # My environment
     # obs = torch.zeros((num_env_steps, env.observation_space.shape[0])).to(device) # gym
     actions = torch.zeros(num_env_steps).to(device)
     logprobs = torch.zeros(num_env_steps).to(device)
@@ -60,9 +59,10 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_ep
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, done, info = env.step(action.item()) 
             cumu_rewards += reward
-            print("global step:", global_step, "reward", reward, "average clc per loop:", cumu_rewards/num_epoch_steps*1000)
+            print("global step:", global_step, "reward", reward, "cumu_rewards", cumu_rewards)
             if done == 1:
-                writer.add_scalar("average clc per loop", cumu_rewards/num_epoch_steps*1000, global_step)
+                writer.add_scalar("covSum", env.covSum, global_step)
+                writer.add_scalar("cumu_rewards", cumu_rewards, global_step)
                 next_obs = env.reset()
                 cumu_rewards = 0
             rewards[step] = torch.tensor(reward).to(device).view(-1) 
@@ -98,7 +98,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_ep
 
                 with torch.no_grad():
                     # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                    approx_kl += [((ratio - 1) - logratio).mean()]
+                    approx_kl += [((ratio - 1) - logratio).mean().item()]
                     clipfracs += [((ratio - 1.0).abs() > clip_coef).float().mean().item()]
 
                 # Policy loss
@@ -120,7 +120,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_ep
                 nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
                 optimizer.step()
 		
-		    # Annealing the learning rate, if KL is too high
+            # Annealing the learning rate, if KL is too high
             if np.mean(approx_kl) > target_kl:
                 optimizer.param_groups[0]["lr"] *= 0.99
 		
@@ -142,12 +142,15 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_ep
 
 if __name__ == "__main__":
 
-    target_kl = [0.02]		# Max KL divergence
-    minibatch_size = [32]	# The batch size to update the neural network
+    target_kl = [0.02]	
+    minibatch_size = [32]	
     gamma = [0.9]
-    ent_coef = [0.1]	    # Weight of the entropy loss in the total loss
-    vf_coef = [0.5]			# Weight of the value loss in the total loss
-    num_epoch_steps = 512	# How many steps you interact with the env before a reset
+    ent_coef = [0.001]	            
+    vf_coef = [0.5]		
+    learning_rate = [5e-4]
+    out_channels = [8]
+    gnn_layers = [5]
+    num_epoch_steps = 256
 
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
 
@@ -156,5 +159,8 @@ if __name__ == "__main__":
             for ga in gamma:
                 for ef in ent_coef:
                     for vf in vf_coef:
-                        name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)
-                        train(env, name, tk, bs, ga, ef, vf, num_epoch_steps)
+                        for lr in learning_rate:
+                            for oc in out_channels:
+                                for gl in gnn_layers:
+                                    name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)+'_lr'+str(lr)+'_oc'+str(oc)+'_gl'+str(gl)
+                                    train(env, name, tk, bs, ga, ef, vf, lr, oc, gl, num_epoch_steps)

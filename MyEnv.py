@@ -19,6 +19,12 @@ def CheckCov(destID, pq9client, recordCov, covSum):
             covSum = covSum + 1
             reward = reward + 1
     return reward, covSum, [int(value) for value in list(binCov)]
+
+def OneHotEmbedding(array, vectorLen):
+    vector = [0]*vectorLen
+    for i in range(len(array)):
+        vector[array[i]] = 1
+    return vector
 	
 def CheckLoopCount(destID, pq9client):
     succes, rawLoopCount = pq9client.processCommand(destID, [97, 1, 1])
@@ -38,8 +44,8 @@ class MyEnv():
         self.codeCountNum = codeCountNum
         self.covSum = 0 # Initial value
         self.recordCov = [0]*(self.codeCountNum + 1) # The CodeCount ID starts from 1
-        self.history = [0]*16
         self.actions = self.parser.ListAllCommands(dest)
+        self.history = [0]*len(self.actions)
         self.max_num_steps = num_epoch_steps
         self.current_step = 0
         self.pq9client = PQ9Client('localhost', '10000', 0.5)
@@ -54,15 +60,15 @@ class MyEnv():
         # Reset the target board
         succes, rawReply = self.pq9client.processCommand(self.destID, [19, 1, 1])
         reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-        return self.recordCov
+        return self.recordCov + OneHotEmbedding(self.history, len(self.actions))
 
     def step(self, actionID):
-        self.history.pop(0)
-        self.history.append(actionID / len(self.actions))
         reward = 0
         done = False
         succes, rawReply = self.pq9client.processCommand(self.destID, self.actions[actionID]['rawPayload'])
         newCov, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+        self.history.pop(0)
+        self.history.append(actionID)
         loopCount = CheckLoopCount(self.destID, self.pq9client)
         reward = 48000 / (loopCount/(time() - self.lastTime)) # How many clock period are used in a loop (unit: 1k)
         self.lastTime = time()
@@ -71,7 +77,7 @@ class MyEnv():
             done = True
         if reward == 0:
             reward = -1
-        return self.recordCov, reward, done, {}
+        return self.recordCov + OneHotEmbedding(self.history, len(self.actions)), reward, done, {}
 
     def randomBaseline(self):
         file = open('curve.txt', 'w')

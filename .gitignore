@@ -1,5 +1,6 @@
 Model
 /runs*
+/PPO-*
 __pycache__
 *.json
 *.txt
