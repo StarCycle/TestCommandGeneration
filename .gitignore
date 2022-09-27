@@ -1,5 +1,7 @@
 Model
 /runs*
+/PPO-*
+/DQN-*
 __pycache__
 *.json
 *.txt

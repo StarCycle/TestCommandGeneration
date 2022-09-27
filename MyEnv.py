@@ -69,14 +69,14 @@ class MyEnv():
 
     def randomBaseline(self):
         file = open('curve.txt', 'w')
-        for i in range(5):
+        for i in range(10):
             cumuReward = 0
             self.reset()
             for j in range(self.max_num_steps):
                 actionID = randint(0, len(self.actions) - 1)
                 recordCov, reward, done, info = self.step(actionID)
                 cumuReward += reward
-                print(j, cumuReward, self.covSum)
+                print(i, j, self.covSum)
                 file.write(str(j) + ',' + str(cumuReward) + ',' + str(self.covSum) + '\n')
 
     def fixedBaseline(self):
