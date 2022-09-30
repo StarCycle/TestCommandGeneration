@@ -1,10 +1,10 @@
 import random
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
+from torch.nn import functional as F
+from GNN_Agent import GNN_Agent
 from MyEnv import MyEnv
 
 class ReplayBuffer(object):
@@ -33,43 +33,14 @@ class ReplayBuffer(object):
             index = np.random.choice(self.counter, size=batch_size)
         return self.obs[index, :], self.actions[index], self.next_obs[index, :], self.rewards[index], self.dones[index]
 
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
-
-class QNetwork(nn.Module):
-    def __init__(self, env):
-        super().__init__()
-        self.value_net = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov+env.actions), 1024)),
-            nn.ReLU(),
-            layer_init(nn.Linear(1024, 1024)),
-            nn.ReLU(),
-            layer_init(nn.Linear(1024, 1), std=0.01),
-        )
-        self.advantage_net = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov+env.actions), 1024)),
-            nn.ReLU(),
-            layer_init(nn.Linear(1024, 1024)),
-            nn.ReLU(),
-            layer_init(nn.Linear(1024, len(env.actions)), std=0.01),
-        )
-
-    def forward(self, x):
-        value = self.value_net(x)
-        advantage = self.advantage_net(x)
-        out = value + advantage - torch.mean(advantage)
-        return out
-
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
     return max(slope * t + start_e, end_e)
 
-def train(env, name, buffer_size, batch_size, learning_rate, exploration_fraction, learning_starts, train_frequency, gamma, target_network_frequency, total_timesteps):
+def train(env, name, buffer_size, batch_size, learning_rate, exploration_fraction, learning_starts, train_frequency, gamma, target_network_frequency, total_timesteps, out_channels, gnn_layers):
 
     start_e = 1
-    end_e = 0.01
+    end_e = 0.05
 
     # seeding
     seed = 1
@@ -80,9 +51,9 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
 
     writer = SummaryWriter("runs/"+name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    q_network = QNetwork(env).to(device)
+    q_network = GNN_Agent(env, out_channels, gnn_layers, device).to(device)
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
-    target_network = QNetwork(env).to(device)
+    target_network = GNN_Agent(env, out_channels, gnn_layers, device).to(device)
     target_network.load_state_dict(q_network.state_dict())
     rb = ReplayBuffer(buffer_size, len(env.recordCov+env.actions), device)
     
@@ -91,6 +62,8 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
     # start the game
     observation = torch.tensor(env.reset()).to(device)
     for global_step in range(total_timesteps):
+        if global_step == 129:
+            print('here')
         epsilon = linear_schedule(start_e, end_e, exploration_fraction * total_timesteps, global_step)
         if random.random() < epsilon:
             action = random.randint(0, len(env.actions) - 1)
@@ -102,8 +75,8 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
         next_ob, reward, done, info = env.step(action)
         cumulative_reward += reward
         episode_return = reward + gamma*episode_return
+        print("global step:", global_step, "cumulative rewards:", cumulative_reward, 'covsum', env.covSum)
         if done == True:
-            print("global step:", global_step, "cumulative rewards:", cumulative_reward, 'covsum', env.covSum)
             writer.add_scalar("cumulative_reward", cumulative_reward, global_step)
             writer.add_scalar("episode_return", episode_return, global_step)
             writer.add_scalar("cov sum", env.covSum, global_step)
@@ -147,22 +120,28 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
             if global_step % target_network_frequency == 0:
                 target_network.load_state_dict(q_network.state_dict())
 
+            # save the network
+            if global_step % 10 == 0:
+                torch.save(q_network.state_dict(), 'Q_Network_'+name)
+
     writer.close()
 
 if __name__ == "__main__":
 
-    buffer_size = [200000]
+    buffer_size = [500000]
     batch_size = [128]
-    learning_rate = [1e-4]
-    exploration_fraction = [0.6]
+    learning_rate = [2.5e-4]
+    exploration_fraction = [0.9]
     learning_starts = [128]
-    train_frequency = [1]
+    train_frequency = [32]
     gamma = [0.9]
     target_network_frequency = [500]
-    total_timesteps = [200000]
+    total_timesteps = [500000]
+    out_channels = [8]
+    gnn_layers = [5]
     num_epoch_steps = 128
 
-    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 631)
+    env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
 
     for bufs in buffer_size:
         for bs in batch_size:
@@ -173,5 +152,7 @@ if __name__ == "__main__":
                             for ga in gamma:
                                 for tnf in target_network_frequency:
                                     for tt in total_timesteps:
-                                        name = 'bufs'+str(bufs)+'_bs'+str(bs)+'_lr'+str(lr)+'_ef'+str(ef)+'_ls'+str(ls)+'_tf'+str(tf)+'_ga'+str(ga)+'_tnf'+str(tnf)+'_tt'+str(tt)
-                                        train(env, name, bufs, bs, lr, ef, ls, tf, ga, tnf, tt)
+                                        for oc in out_channels:
+                                            for gl in gnn_layers:
+                                                name = 'bufs'+str(bufs)+'_bs'+str(bs)+'_lr'+str(lr)+'_ef'+str(ef)+'_ls'+str(ls)+'_tf'+str(tf)+'_ga'+str(ga)+'_tnf'+str(tnf)+'_tt'+str(tt)+'_oc'+str(oc)+'_gl'+str(gl)
+                                                train(env, name, bufs, bs, lr, ef, ls, tf, ga, tnf, tt, oc, gl)
