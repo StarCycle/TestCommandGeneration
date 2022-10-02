@@ -99,6 +99,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             cumu_rewards += reward
             print("global step:", global_step, "reward", reward, "average clc per loop:", cumu_rewards/num_epoch_steps*1000)
             if done == 1:
+                writer.add_scalar("cumulative reward", cumu_rewards, global_step)
                 writer.add_scalar("average clc per loop", cumu_rewards/num_epoch_steps*1000, global_step)
                 next_obs = env.reset()
                 cumu_rewards = 0
@@ -187,7 +188,7 @@ if __name__ == "__main__":
     num_nn = [2048]
     critic_std = [1]
     actor_std = [0.01]
-    num_epoch_steps = 512	# How many steps you interact with the env before a reset
+    num_epoch_steps = 128	# How many steps you interact with the env before a reset
 
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
     # env = gym.make('Acrobot-v1')
