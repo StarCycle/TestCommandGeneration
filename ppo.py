@@ -9,7 +9,7 @@ from MyEnv import MyEnv
 
 def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learning_rate, out_channels, gnn_layers, num_epoch_steps):
 
-    total_timesteps = 500000             # How many steps you interact with the env
+    total_timesteps = 100000             # How many steps you interact with the env
     num_env_steps = 128                  # How many steps you interact with the env before an update
     num_update_steps = 4                 # How many times you update the neural networks after interation
     gae_lambda = 0.95                    # Parameter in advantage estimation
@@ -137,20 +137,21 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learni
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
+        torch.save(agent.state_dict(), 'PPO_'+name)
 
     writer.close()
 
 if __name__ == "__main__":
 
-    target_kl = [0.02]	
+    target_kl = [0.02, 0.05]	
     minibatch_size = [32]	
     gamma = [0.9]
-    ent_coef = [0.001]	            
+    ent_coef = [0.001,0.01]	            
     vf_coef = [0.5]		
-    learning_rate = [5e-4]
+    learning_rate = [1e-4]
     out_channels = [8]
     gnn_layers = [5]
-    num_epoch_steps = 256
+    num_epoch_steps = 128
 
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
 
