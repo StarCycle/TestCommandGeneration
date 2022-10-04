@@ -3,7 +3,6 @@ import torch
 import numpy as np
 from torch import nn
 from torch import Tensor 
-from torch.nn import functional as F
 from torch.distributions.categorical import Categorical
 from torch_geometric.nn.inits import uniform
 from torch_geometric.nn.conv import MessagePassing
@@ -47,7 +46,7 @@ class GatedGraphConv(MessagePassing):
 class GNN_Agent(torch.nn.Module):
     def __init__(self, env, out_channels, gnn_layers, device):
         super(GNN_Agent, self).__init__()
-        with open('graph.json', 'r') as f:
+        with open('graph_len127.json', 'r') as f:
             graph = json.load(f)
         self.nodes = torch.tensor(graph['features'], dtype=torch.float32)
         self.nodes = torch.zeros(self.nodes.shape)
@@ -56,17 +55,20 @@ class GNN_Agent(torch.nn.Module):
         self.historyVecLen = len(env.actions)			
         nodeChannels = self.nodes.shape[1] + 1 # Add Code cov info 
         self.graphConv = GatedGraphConv(out_channels, gnn_layers)
+        self.atten_i = nn.Linear(out_channels+nodeChannels, 256)
+        self.atten_j = nn.Linear(out_channels+nodeChannels, 256)
         self.nodemlp = nn.Sequential(
             layer_init(nn.Linear(out_channels, out_channels)),
             nn.ReLU(),
         )
-        self.graphmlp = nn.Sequential(
-           layer_init(nn.Linear(out_channels+self.historyVecLen, 512)),
-           nn.ReLU(),
-        )
-        self.value_net = layer_init(nn.Linear(512, 1), 0.01)
-        self.advantage_net = layer_init(nn.Linear(512, len(env.actions)), 0.01)
-        
+        self.value_net = layer_init(nn.Linear(256, 1), 0.01)
+        self.advantage_net = layer_init(nn.Linear(256, len(env.actions)), 0.01)
+
+    def attention(self, x, nodesInput):
+        x = torch.cat((x, nodesInput), 1)
+        x = torch.mul(torch.sigmoid(self.atten_i(x)), torch.relu(self.atten_j(x)))
+        return x
+
     def GNN(self, cov, batch, batchNum):
         device = cov.device
         batch = torch.tensor(batch).to(device)
@@ -82,9 +84,9 @@ class GNN_Agent(torch.nn.Module):
             edgesInput = torch.cat((edgesInput, temp), 1)
         x = self.graphConv(nodesInput, edgesInput) 
         x = self.nodemlp(x)
-        # x = x.reshape((batchNum, -1))
-        # x = self.graphmlp(x)
+        x = self.attention(x, nodesInput)
         x = global_add_pool(x, batch=batch)
+        x = torch.relu(x)
         return x
 		
     def forward(self, input):
@@ -100,8 +102,7 @@ class GNN_Agent(torch.nn.Module):
         cov = input[:, :len(self.count2label)]
         history = input[:, len(self.count2label):]
         graphEmb = self.GNN(cov, batch, batchNum)
-        state = self.graphmlp(torch.cat((graphEmb, history), 1))
-        value = self.value_net(state)
-        advantage = self.advantage_net(state)
+        value = self.value_net(graphEmb)
+        advantage = self.advantage_net(graphEmb)
         out = value + advantage - torch.mean(advantage)
         return out

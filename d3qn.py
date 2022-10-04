@@ -4,7 +4,7 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn import functional as F
-from GNN_Agent import GNN_Agent
+from GNN_Agent_sum import GNN_Agent
 from MyEnv import MyEnv
 
 class ReplayBuffer(object):
@@ -40,7 +40,7 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
 def train(env, name, buffer_size, batch_size, learning_rate, exploration_fraction, learning_starts, train_frequency, gamma, target_network_frequency, total_timesteps, out_channels, gnn_layers):
 
     start_e = 1
-    end_e = 0.05
+    end_e = 0.01
 
     # seeding
     seed = 1
@@ -62,8 +62,6 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
     # start the game
     observation = torch.tensor(env.reset()).to(device)
     for global_step in range(total_timesteps):
-        if global_step == 129:
-            print('here')
         epsilon = linear_schedule(start_e, end_e, exploration_fraction * total_timesteps, global_step)
         if random.random() < epsilon:
             action = random.randint(0, len(env.actions) - 1)
@@ -130,14 +128,14 @@ if __name__ == "__main__":
 
     buffer_size = [500000]
     batch_size = [128]
-    learning_rate = [2.5e-4]
+    learning_rate = [1e-4]
     exploration_fraction = [0.9]
     learning_starts = [128]
-    train_frequency = [32]
+    train_frequency = [16]
     gamma = [0.9]
     target_network_frequency = [500]
     total_timesteps = [500000]
-    out_channels = [8]
+    out_channels = [128]
     gnn_layers = [5]
     num_epoch_steps = 128
 
