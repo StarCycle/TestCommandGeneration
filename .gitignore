@@ -2,4 +2,6 @@ Model
 *.json
 *.txt
 /runs
+/PPO-*
+/DQN-*
 /__pychache__
