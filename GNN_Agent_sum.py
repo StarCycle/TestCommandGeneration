@@ -49,7 +49,6 @@ class GNN_Agent(torch.nn.Module):
         with open('graph_len127.json', 'r') as f:
             graph = json.load(f)
         self.nodes = torch.tensor(graph['features'], dtype=torch.float32)
-        self.nodes = torch.zeros(self.nodes.shape)
         self.edges = torch.tensor(graph['edges'], dtype=torch.long).T
         self.count2label = torch.tensor(graph['count2label'], dtype=torch.long)
         self.historyVecLen = len(env.actions)			
