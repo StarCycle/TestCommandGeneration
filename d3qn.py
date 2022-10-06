@@ -9,11 +9,12 @@ from MyEnv import MyEnv
 
 class ReplayBuffer(object):
     def __init__(self, capacity, observation_len, device):
-        self.obs = torch.zeros(capacity, observation_len).to(device)
-        self.actions = torch.zeros(capacity, dtype=torch.long).to(device)
-        self.next_obs = torch.zeros(capacity, observation_len).to(device)
-        self.rewards = torch.zeros(capacity).to(device)
-        self.dones = torch.zeros(capacity).to(device)
+        self.obs = torch.zeros(capacity, observation_len, dtype=torch.float32)
+        self.actions = torch.zeros(capacity, dtype=torch.long)
+        self.next_obs = torch.zeros(capacity, observation_len)
+        self.rewards = torch.zeros(capacity)
+        self.dones = torch.zeros(capacity)
+        self.device = device
         self.counter = 0
         self.capacity = capacity
 
@@ -31,7 +32,7 @@ class ReplayBuffer(object):
             index = np.random.choice(self.capacity, size=batch_size)
         else:
             index = np.random.choice(self.counter, size=batch_size)
-        return self.obs[index, :], self.actions[index], self.next_obs[index, :], self.rewards[index], self.dones[index]
+        return self.obs[index, :].to(self.device), self.actions[index].to(self.device), self.next_obs[index, :].to(self.device), self.rewards[index].to(self.device), self.dones[index].to(self.device)
 
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
@@ -60,7 +61,7 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
     cumulative_reward = 0
     episode_return = 0
     # start the game
-    observation = torch.tensor(env.reset()).to(device)
+    observation = torch.tensor(env.reset())
     for global_step in range(total_timesteps):
         epsilon = linear_schedule(start_e, end_e, exploration_fraction * total_timesteps, global_step)
         if random.random() < epsilon:
@@ -80,10 +81,10 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
             writer.add_scalar("cov sum", env.covSum, global_step)
             cumulative_reward = 0
             next_ob = env.reset()
-        next_ob = torch.tensor(next_ob, dtype=torch.float32).to(device)
-        action = torch.tensor(action, dtype=torch.long).to(device)
-        reward = torch.tensor(reward).to(device)
-        done = torch.tensor(done).to(device)
+        next_ob = torch.tensor(next_ob, dtype=torch.float32)
+        action = torch.tensor(action, dtype=torch.long)
+        reward = torch.tensor(reward)
+        done = torch.tensor(done)
 
         # save data to reply buffer
         real_next_ob = next_ob.clone()
@@ -127,18 +128,19 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
 if __name__ == "__main__":
 
     buffer_size = [500000]
-    batch_size = [128]
+    batch_size = [32]
     learning_rate = [1e-4]
     exploration_fraction = [0.9]
     learning_starts = [128]
-    train_frequency = [16]
+    train_frequency = [4]
     gamma = [0.9]
     target_network_frequency = [500]
     total_timesteps = [500000]
     out_channels = [128]
-    gnn_layers = [5]
+    gnn_layers = [3]
     num_epoch_steps = 128
 
+    torch.set_default_dtype(torch.float)
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
 
     for bufs in buffer_size:

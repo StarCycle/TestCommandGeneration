@@ -48,20 +48,28 @@ class GNN_Agent(torch.nn.Module):
         super(GNN_Agent, self).__init__()
         with open('graph_len127.json', 'r') as f:
             graph = json.load(f)
-        self.nodes = torch.tensor(graph['features'], dtype=torch.float32)
-        self.edges = torch.tensor(graph['edges'], dtype=torch.long).T
+        self.nodes = torch.tensor(graph['features'], dtype=torch.float32).to(device)
+        self.edges = torch.tensor(graph['edges'], dtype=torch.long).T.to(device)
         self.count2label = torch.tensor(graph['count2label'], dtype=torch.long)
         self.historyVecLen = len(env.actions)			
         nodeChannels = self.nodes.shape[1] + 1 # Add Code cov info 
         self.graphConv = GatedGraphConv(out_channels, gnn_layers)
         self.atten_i = nn.Linear(out_channels+nodeChannels, 256)
         self.atten_j = nn.Linear(out_channels+nodeChannels, 256)
-        self.nodemlp = nn.Sequential(
-            layer_init(nn.Linear(out_channels, out_channels)),
+        self.value_net = nn.Sequential(
+            layer_init(nn.Linear(256+self.historyVecLen, 128)),
             nn.ReLU(),
+            layer_init(nn.Linear(128, 128)),
+            nn.ReLU(),
+            layer_init(nn.Linear(128, 1), 0.01),
         )
-        self.value_net = layer_init(nn.Linear(256, 1), 0.01)
-        self.advantage_net = layer_init(nn.Linear(256, len(env.actions)), 0.01)
+        self.advantage_net = nn.Sequential(
+            layer_init(nn.Linear(256+self.historyVecLen, 128)),
+            nn.ReLU(),
+            layer_init(nn.Linear(128, 128)),
+            nn.ReLU(),
+            layer_init(nn.Linear(128, len(env.actions)), 0.01),
+        )
 
     def attention(self, x, nodesInput):
         x = torch.cat((x, nodesInput), 1)
@@ -69,7 +77,7 @@ class GNN_Agent(torch.nn.Module):
         return x
 
     def GNN(self, cov, batch, batchNum):
-        device = cov.device
+        device = self.nodes.device
         batch = torch.tensor(batch).to(device)
         nodesInput = torch.tensor([]).to(device)
         edgesInput = torch.tensor([], dtype=torch.long).to(device)
@@ -82,7 +90,6 @@ class GNN_Agent(torch.nn.Module):
             temp = self.edges + i*self.nodes.shape[0]
             edgesInput = torch.cat((edgesInput, temp), 1)
         x = self.graphConv(nodesInput, edgesInput) 
-        x = self.nodemlp(x)
         x = self.attention(x, nodesInput)
         x = global_add_pool(x, batch=batch)
         x = torch.relu(x)
@@ -98,10 +105,11 @@ class GNN_Agent(torch.nn.Module):
             batch = []
             for i in range(batchNum):
                 batch = batch + [i]*self.nodes.shape[0]
-        cov = input[:, :len(self.count2label)]
-        history = input[:, len(self.count2label):]
+        cov = input[:, :len(self.count2label)].to(self.nodes.device)
+        history = input[:, len(self.count2label):].to(self.nodes.device)
         graphEmb = self.GNN(cov, batch, batchNum)
-        value = self.value_net(graphEmb)
-        advantage = self.advantage_net(graphEmb)
+        state = torch.cat((graphEmb, history), 1)
+        value = self.value_net(state)
+        advantage = self.advantage_net(state)
         out = value + advantage - torch.mean(advantage)
         return out
