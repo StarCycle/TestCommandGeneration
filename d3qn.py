@@ -74,11 +74,10 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
         next_ob, reward, done, info = env.step(action)
         cumulative_reward += reward
         episode_return = reward + gamma*episode_return
-        print("global step:", global_step, "cumulative rewards:", cumulative_reward, 'covsum', env.covSum)
-        if done == True:
-            writer.add_scalar("cumulative_reward", cumulative_reward, global_step)
-            writer.add_scalar("episode_return", episode_return, global_step)
-            writer.add_scalar("cov sum", env.covSum, global_step)
+        print("global step:", global_step, "reward", reward, "average clc per loop:", cumulative_reward/num_epoch_steps*1000)
+        if done == 1:
+            writer.add_scalar("cumulative reward", cumulative_reward, global_step)
+            writer.add_scalar("average clc per loop", cumulative_reward/num_epoch_steps*1000, global_step)
             cumulative_reward = 0
             next_ob = env.reset()
         next_ob = torch.tensor(next_ob, dtype=torch.float32)
@@ -127,7 +126,7 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
 
 if __name__ == "__main__":
 
-    buffer_size = [500000]
+    buffer_size = [50000]
     batch_size = [32]
     learning_rate = [1e-4]
     exploration_fraction = [0.9]
@@ -135,12 +134,11 @@ if __name__ == "__main__":
     train_frequency = [4]
     gamma = [0.9]
     target_network_frequency = [500]
-    total_timesteps = [500000]
+    total_timesteps = [50000]
     out_channels = [128]
     gnn_layers = [3]
     num_epoch_steps = 128
 
-    torch.set_default_dtype(torch.float)
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
 
     for bufs in buffer_size:
