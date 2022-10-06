@@ -48,7 +48,7 @@ class MyEnv():
         self.history = [0]*len(self.actions)
         self.max_num_steps = num_epoch_steps
         self.current_step = 0
-        self.pq9client = PQ9Client('localhost', '10000', 0.5)
+        self.pq9client = PQ9Client('5.tcp.eu.ngrok.io', '11636', 1)
         self.pq9client.connect()
 
     def reset(self):
