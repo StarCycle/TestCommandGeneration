@@ -34,7 +34,6 @@ class MyEnv():
     def __init__(self, dest, destID, paraFile, cmdFile, replyFile, num_epoch_steps, codeCountNum):
         self.destID = destID
         self.parser = Parser(paraFile, cmdFile, replyFile)
-        self.lastTime = time()
         self.codeCountNum = codeCountNum
         self.covSum = 0 # Initial value
         self.recordCov = [0]*(self.codeCountNum + 1) # The CodeCount ID starts from 1
@@ -42,7 +41,7 @@ class MyEnv():
         self.actions = self.parser.ListAllCommands(dest)
         self.max_num_steps = num_epoch_steps
         self.current_step = 0
-        self.pq9client = PQ9Client('localhost', '10000', 0.5)
+        self.pq9client = PQ9Client('4.tcp.eu.ngrok.io', '17520', 0.5)
         self.pq9client.connect()
 
     def reset(self):
@@ -61,11 +60,13 @@ class MyEnv():
         self.history.append(actionID / len(self.actions))
         reward = 0
         done = False
+        _ = CheckLoopCount(self.destID, self.pq9client) # Start loop count
+        startTime = time()
         succes, rawReply = self.pq9client.processCommand(self.destID, self.actions[actionID]['rawPayload'])
+        loopCount = CheckLoopCount(self.destID, self.pq9client) # End loop count
+        endTime = time()       
         newCov, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-        loopCount = CheckLoopCount(self.destID, self.pq9client)
-        reward = 48000 / (loopCount/(time() - self.lastTime)) # How many clock period are used in a loop (unit: 1k)
-        self.lastTime = time()
+        reward = 48000 / (loopCount/(endTime - startTime)) # How many clock period are used in a loop (unit: 1k)
         self.current_step += 1
         if self.current_step >= self.max_num_steps:
             done = True
@@ -76,14 +77,12 @@ class MyEnv():
     def randomBaseline(self):
         file = open('curve.txt', 'w')
         for i in range(5):
-            cumuReward = 0
             self.reset()
             for j in range(self.max_num_steps):
                 actionID = randint(0, len(self.actions) - 1)
                 recordCov, reward, done, info = self.step(actionID)
-                cumuReward += reward
-                print(j, cumuReward, self.covSum)
-                file.write(str(j) + ',' + str(cumuReward) + ',' + str(self.covSum) + '\n')
+                print(j, reward*1000)
+                file.write(str(j) + ',' + str(reward*1000) + '\n')
 
     def fixedBaseline(self):
         file = open('curve.txt', 'w')
