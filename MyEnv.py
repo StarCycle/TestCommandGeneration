@@ -1,7 +1,7 @@
 from Parser import Parser
 from PQ9Client import PQ9Client
 from random import randint
-from time import time
+from time import time, sleep
 
 def CheckCov(destID, pq9client, recordCov, covSum):
     # Retrieve coverage array from the target
@@ -19,6 +19,12 @@ def CheckCov(destID, pq9client, recordCov, covSum):
             covSum = covSum + 1
             reward = reward + 1
     return reward, covSum, [int(value) for value in list(binCov)]
+
+def OneHotEmbedding(array, vectorLen):
+    vector = [0]*vectorLen
+    for i in range(len(array)):
+        vector[array[i]] = 1
+    return vector
 	
 def CheckLoopCount(destID, pq9client):
     succes, rawLoopCount = pq9client.processCommand(destID, [97, 1, 1])
@@ -34,15 +40,14 @@ class MyEnv():
     def __init__(self, dest, destID, paraFile, cmdFile, replyFile, num_epoch_steps, codeCountNum):
         self.destID = destID
         self.parser = Parser(paraFile, cmdFile, replyFile)
-        self.lastTime = time()
         self.codeCountNum = codeCountNum
         self.covSum = 0 # Initial value
         self.recordCov = [0]*(self.codeCountNum + 1) # The CodeCount ID starts from 1
-        self.history = [0]*16
         self.actions = self.parser.ListAllCommands(dest)
+        self.history = [0]*len(self.actions)
         self.max_num_steps = num_epoch_steps
         self.current_step = 0
-        self.pq9client = PQ9Client('localhost', '10000', 0.5)
+        self.pq9client = PQ9Client('localhost', '10000', 1)
         self.pq9client.connect()
 
     def reset(self):
@@ -54,24 +59,24 @@ class MyEnv():
         # Reset the target board
         succes, rawReply = self.pq9client.processCommand(self.destID, [19, 1, 1])
         reward, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
-        return self.recordCov+self.history
+        return self.recordCov + OneHotEmbedding(self.history, len(self.actions))
 
     def step(self, actionID):
         self.history.pop(0)
-        self.history.append(actionID / len(self.actions))
+        self.history.append(actionID)
         reward = 0
         done = False
-        succes, rawReply = self.pq9client.processCommand(self.destID, self.actions[actionID]['rawPayload'])
+        startTime = time()
+        _ = CheckLoopCount(self.destID, self.pq9client)
+        succes, rawReply = self.pq9client.processCommand(self.destID, self.actions[actionID]['rawPayload'])         
         newCov, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+        endTime = time()
         loopCount = CheckLoopCount(self.destID, self.pq9client)
-        reward = 48000 / (loopCount/(time() - self.lastTime)) # How many clock period are used in a loop (unit: 1k)
-        self.lastTime = time()
+        reward = 48000 / (loopCount/(endTime - startTime)) # How many clock period are used in a loop (unit: 1k)
         self.current_step += 1
         if self.current_step >= self.max_num_steps:
             done = True
-        if reward == 0:
-            reward = -1
-        return self.recordCov+self.history, reward, done, {}
+        return self.recordCov + OneHotEmbedding(self.history, len(self.actions)), reward, done, {}
 
     def randomBaseline(self):
         file = open('curve.txt', 'w')

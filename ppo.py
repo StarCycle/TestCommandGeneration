@@ -175,6 +175,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
+        torch.save(agent.state_dict(), 'PPO_'+name)
 
     writer.close()
 
@@ -182,8 +183,8 @@ if __name__ == "__main__":
 
     target_kl = [0.02]		# Max KL divergence
     minibatch_size = [32]	# The batch size to update the neural network
-    gamma = [0.9, 0.99]
-    ent_coef = [0.1, 0.5]	    # Weight of the entropy loss in the total loss
+    gamma = [0.9]
+    ent_coef = [0.01]	    # Weight of the entropy loss in the total loss
     vf_coef = [0.5]			# Weight of the value loss in the total loss
     num_nn = [2048]
     critic_std = [1]
@@ -191,7 +192,6 @@ if __name__ == "__main__":
     num_epoch_steps = 128	# How many steps you interact with the env before a reset
 
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
-    # env = gym.make('Acrobot-v1')
 
     for tk in target_kl:
         for bs in minibatch_size:
