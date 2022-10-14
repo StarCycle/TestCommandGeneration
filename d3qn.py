@@ -42,18 +42,18 @@ class QNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
         self.value_net = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov+env.actions), 1024)),
+            layer_init(nn.Linear(len(env.recordCov+env.actions), 2048)),
             nn.ReLU(),
-            layer_init(nn.Linear(1024, 1024)),
+            layer_init(nn.Linear(2048, 2048)),
             nn.ReLU(),
-            layer_init(nn.Linear(1024, 1), std=0.01),
+            layer_init(nn.Linear(2048, 1), std=0.01),
         )
         self.advantage_net = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov+env.actions), 1024)),
+            layer_init(nn.Linear(len(env.recordCov+env.actions), 2048)),
             nn.ReLU(),
-            layer_init(nn.Linear(1024, 1024)),
+            layer_init(nn.Linear(2048, 2048)),
             nn.ReLU(),
-            layer_init(nn.Linear(1024, len(env.actions)), std=0.01),
+            layer_init(nn.Linear(2048, len(env.actions)), std=0.01),
         )
 
     def forward(self, x):
@@ -103,10 +103,9 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
         cumulative_reward += reward
         episode_return = reward + gamma*episode_return
         if done == True:
-            print("global step:", global_step, "cumulative rewards:", cumulative_reward, 'covsum', env.covSum)
+            print("global step:", global_step, "cumulative rewards:", cumulative_reward)
             writer.add_scalar("cumulative_reward", cumulative_reward, global_step)
             writer.add_scalar("episode_return", episode_return, global_step)
-            writer.add_scalar("cov sum", env.covSum, global_step)
             cumulative_reward = 0
             next_ob = env.reset()
         next_ob = torch.tensor(next_ob, dtype=torch.float32).to(device)
@@ -151,15 +150,15 @@ def train(env, name, buffer_size, batch_size, learning_rate, exploration_fractio
 
 if __name__ == "__main__":
 
-    buffer_size = [200000]
+    buffer_size = [50000]
     batch_size = [128]
-    learning_rate = [1e-4]
-    exploration_fraction = [0.6]
+    learning_rate = [5e-4]
+    exploration_fraction = [0.8]
     learning_starts = [128]
     train_frequency = [1]
     gamma = [0.9]
     target_network_frequency = [500]
-    total_timesteps = [200000]
+    total_timesteps = [50000]
     num_epoch_steps = 128
 
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 631)
