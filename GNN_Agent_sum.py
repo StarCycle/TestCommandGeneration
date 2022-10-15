@@ -57,7 +57,7 @@ class GNN_Agent(torch.nn.Module):
         self.atten_i = nn.Linear(2*nodeChannels, 2*nodeChannels)
         self.atten_j = nn.Linear(2*nodeChannels, 2*nodeChannels)
         self.graphmlp = nn.Sequential(
-            layer_init(nn.Linear(2*nodeChannels+self.historyVecLen, 256)),
+            layer_init(nn.Linear(2*nodeChannels+self.historyVecLen, 256), 0.01),
             nn.ReLU(),
         )
         self.critic = layer_init(nn.Linear(256, 1), 1)

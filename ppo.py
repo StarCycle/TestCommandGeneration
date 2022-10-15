@@ -145,7 +145,7 @@ if __name__ == "__main__":
     target_kl = [0.02]	
     minibatch_size = [32]	
     gamma = [0.9]
-    ent_coef = [0.001,0.01]	            
+    ent_coef = [0.01]	            
     vf_coef = [0.5]	
     total_timesteps = [100000]	
     learning_rate = [1e-4]

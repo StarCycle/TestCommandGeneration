@@ -1,7 +1,7 @@
 from Parser import Parser
 from PQ9Client import PQ9Client
 from random import randint
-from time import time
+from time import time, sleep
 
 def CheckCov(destID, pq9client, recordCov, covSum):
     # Retrieve coverage array from the target
@@ -40,7 +40,6 @@ class MyEnv():
     def __init__(self, dest, destID, paraFile, cmdFile, replyFile, num_epoch_steps, codeCountNum):
         self.destID = destID
         self.parser = Parser(paraFile, cmdFile, replyFile)
-        self.lastTime = time()
         self.codeCountNum = codeCountNum
         self.covSum = 0 # Initial value
         self.recordCov = [0]*(self.codeCountNum + 1) # The CodeCount ID starts from 1
@@ -48,7 +47,7 @@ class MyEnv():
         self.history = [0]*len(self.actions)
         self.max_num_steps = num_epoch_steps
         self.current_step = 0
-        self.pq9client = PQ9Client('5.tcp.eu.ngrok.io', '11636', 1)
+        self.pq9client = PQ9Client('localhost', '10000', 1)
         self.pq9client.connect()
 
     def reset(self):
@@ -63,20 +62,20 @@ class MyEnv():
         return self.recordCov + OneHotEmbedding(self.history, len(self.actions))
 
     def step(self, actionID):
-        reward = 0
-        done = False
-        succes, rawReply = self.pq9client.processCommand(self.destID, self.actions[actionID]['rawPayload'])
-        newCov, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
         self.history.pop(0)
         self.history.append(actionID)
+        reward = 0
+        done = False
+        startTime = time()
+        _ = CheckLoopCount(self.destID, self.pq9client)
+        succes, rawReply = self.pq9client.processCommand(self.destID, self.actions[actionID]['rawPayload'])         
+        newCov, self.covSum, covByLastCmd = CheckCov(self.destID, self.pq9client, self.recordCov, self.covSum)
+        endTime = time()
         loopCount = CheckLoopCount(self.destID, self.pq9client)
-        reward = 48000 / (loopCount/(time() - self.lastTime)) # How many clock period are used in a loop (unit: 1k)
-        self.lastTime = time()
+        reward = 48000 / (loopCount/(endTime - startTime)) # How many clock period are used in a loop (unit: 1k)
         self.current_step += 1
         if self.current_step >= self.max_num_steps:
             done = True
-        if reward == 0:
-            reward = -1
         return self.recordCov + OneHotEmbedding(self.history, len(self.actions)), reward, done, {}
 
     def randomBaseline(self):
