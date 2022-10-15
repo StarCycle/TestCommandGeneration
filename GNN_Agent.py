@@ -44,21 +44,22 @@ class GatedGraphConv(MessagePassing):
         return x_j
 
 class GNN_Agent(torch.nn.Module):
-    def __init__(self, env, graphFile, out_channels, gnn_layers, device):
+    def __init__(self, env, graphFile, gnn_layers, device):
         super(GNN_Agent, self).__init__()
-        with open('graph.json', 'r') as f:
+        with open(graphFile, 'r') as f:
             graph = json.load(f)
         self.nodes = torch.tensor(graph['features'], dtype=torch.float32)
         self.edges = torch.tensor(graph['edges'], dtype=torch.long).T
         self.count2label = torch.tensor(graph['count2label'], dtype=torch.long)
         self.historyVecLen = len(env.actions)			
-        self.graphConv = GatedGraphConv(out_channels, gnn_layers)
+        nodeChannel = self.nodes.shape[1] + 1
+        self.graphConv = GatedGraphConv(nodeChannel, gnn_layers)
         self.nodemlp = nn.Sequential(
-            layer_init(nn.Linear(out_channels, 1)),
+            layer_init(nn.Linear(nodeChannel, 1), 0.01),
             nn.ReLU(),
         )
         self.graphmlp = nn.Sequential(
-            layer_init(nn.Linear(self.nodes.shape[0]+self.historyVecLen, 2048)),
+            layer_init(nn.Linear(self.nodes.shape[0]+self.historyVecLen, 2048), 0.01),
             nn.ReLU(),
         )
         self.critic = layer_init(nn.Linear(2048, 1), 1)

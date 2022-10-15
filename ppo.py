@@ -149,7 +149,7 @@ if __name__ == "__main__":
     vf_coef = [0.5]	
     total_timesteps = [100000]	
     learning_rate = [1e-4]
-    gnn_layers = [5]
+    gnn_layers = [3]
     num_epoch_steps = 128
 
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
