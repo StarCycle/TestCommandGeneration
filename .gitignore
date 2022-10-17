@@ -3,3 +3,5 @@ Model
 __pycache__
 *.json
 *.txt
+DQN-*
+PPO-*

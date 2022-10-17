@@ -1,6 +1,6 @@
 import asyncio
 import json
-from time import time
+from time import time, sleep
 
 class PQ9Client:
 
@@ -74,7 +74,7 @@ class PQ9Client:
             string = '[no response from ' + command['dest'] + ' at {:.3f}'.format(time()-self.startTime) + '] '
             self.file.write(string + '\n')
             if trialNum > 10:
-                return False, []
+                self.reset(destination)
             print('No response, retrying...')
             self.sendFrame(command)
             succes, msg = self.getFrame()
@@ -94,5 +94,6 @@ class PQ9Client:
         self.file.write('[Reset EGSE]\n')
         command['dest'] = str(destID)
         command['data'] = '19 1 1'
+        self.sendFrame(command)
         string = '[send to ' + command['dest'] + ' at {:.3f}'.format(time()-self.startTime) + ']\t\t' + command['data']
         self.file.write(string + '\n')

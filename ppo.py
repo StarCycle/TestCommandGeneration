@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
-from MyEnv import MyEnv
+from MyEnv_cpuload import MyEnv
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -97,10 +97,10 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, done, info = env.step(action.cpu().numpy()) 
             cumu_rewards += reward
-            print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'covsum', env.covSum)
+            print("global step:", global_step, "cumulative rewards:", cumu_rewards, 'clc per loop', cumu_rewards*1000/num_epoch_steps)
             if done == True:
                 writer.add_scalar("cumulative rewards", cumu_rewards, global_step)
-                writer.add_scalar("cov sum", env.covSum, global_step)
+                writer.add_scalar("clc per loop", cumu_rewards*1000/num_epoch_steps, global_step)
                 next_obs = env.reset()
                 cumu_rewards = 0
             rewards[step] = torch.tensor(reward).to(device).view(-1) 
@@ -174,26 +174,22 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
-        for name, param in agent.named_parameters():
-            writer.add_histogram(tag=name+'_grad', values=param.grad, global_step=global_step)
-            writer.add_histogram(tag=name+'_data', values=param.data, global_step=global_step)
 
-    torch.save(agent.state_dict(), 'Model_'+name)
     writer.close()
 
 if __name__ == "__main__":
 
-    target_kl = [0.02, 0.1]	# Max KL divergence
+    target_kl = [0.02]	# Max KL divergence
     minibatch_size = [32]   # The batch size to update the neural network
-    gamma = [0.9, 0.95]
-    ent_coef = [0.01, 0.05]	# Weight of the entropy loss in the total loss
+    gamma = [0.9]
+    ent_coef = [0.01]	# Weight of the entropy loss in the total loss
     vf_coef = [0.5]	        # Weight of the value loss in the total loss
-    num_nn = [1024, 2048]
+    num_nn = [2048]
     critic_std = [1]
     actor_std = [0.01]
     num_epoch_steps = 128    # How many steps you interact with the env before a reset
 
-    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 3, num_epoch_steps, 631)
+    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 10, num_epoch_steps, 631)
 
     for tk in target_kl:
         for bs in minibatch_size:
