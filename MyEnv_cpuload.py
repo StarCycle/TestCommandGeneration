@@ -44,7 +44,7 @@ def CheckCov(destID, pq9client, recordCov, covSum):
     for rawData in rawCov:
         binCov = binCov + bin(rawData)[2:].rjust(8, '0')
     if len(binCov) < len(recordCov):
-        return False, 0, covSum, []
+        return 0, covSum, []
     reward = 0
     for i in range(len(recordCov)):
         if binCov[i] == '1' and recordCov[i] == 0:

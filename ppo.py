@@ -5,58 +5,20 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+from GNN_Agent_sum import GNN_Agent
 from MyEnv_cpuload import MyEnv
 
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
+def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learning_rate, total_timesteps, gnn_layers, num_epoch_steps):
 
-class Agent(nn.Module):
-    def __init__(self, env, num_nn, critic_std, actor_std):
-        super().__init__()
-        self.action_space = env.action_space
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, num_nn)),
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, 1), std=critic_std),
-        )
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(len(env.recordCov), num_nn)), # My environment
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, num_nn)),
-            nn.ReLU(),
-            layer_init(nn.Linear(num_nn, sum(self.action_space)), std=actor_std), # My environment
-        )
-
-    def get_value(self, x):
-        return self.critic(x)
-
-    def get_action_and_value(self, x, action=None):
-        logits = self.actor(x)
-        split_logits = torch.split(logits, self.action_space, dim=1)
-        multi_categoricals = [Categorical(logits=logits) for logits in split_logits]
-        if action is None:
-            action = torch.stack([categorical.sample() for categorical in multi_categoricals])
-        logprob = torch.stack([categorical.log_prob(a) for a, categorical in zip(action, multi_categoricals)])
-        entropy = torch.stack([categorical.entropy() for categorical in multi_categoricals])
-        return action, logprob.sum(0), entropy.sum(0), self.critic(x)
-
-def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn, critic_std, actor_std, num_epoch_steps):
-
-    learning_rate = 5e-4
-    total_timesteps = 200000     # How many steps you interact with the env
-    num_env_steps = 128         # How many steps you interact with the env before an update
-    num_update_steps = 4       # How many times you update the neural networks after interation
-    gae_lambda = 0.95             # Parameter in advantage estimation
-    clip_coef = 0.2                    # Parameter to clip the (p_new/p_old) ratio
-    max_grad_norm = 0.5         # max norm of the gradient vector
+    num_env_steps = 128                  # How many steps you interact with the env before an update
+    num_update_steps = 4                 # How many times you update the neural networks after interation
+    gae_lambda = 0.95                    # Parameter in advantage estimation
+    clip_coef = 0.2                      # Parameter to clip the (p_new/p_old) ratio
+    max_grad_norm = 0.5                  # max norm of the gradient vector
 
     writer = SummaryWriter('runs/' + name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = Agent(env, num_nn, critic_std, actor_std).to(device)
+    agent = GNN_Agent(env, 'graph_len127.json', gnn_layers, device).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
@@ -174,30 +136,31 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, num_nn
         writer.add_scalar("clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("explained_variance", explained_var, global_step)
         writer.add_scalar("mean_value", values.mean().item(), global_step)
+        torch.save(agent.state_dict(), 'PPO_'+name)
 
     writer.close()
 
 if __name__ == "__main__":
 
-    target_kl = [0.02]	# Max KL divergence
-    minibatch_size = [32]   # The batch size to update the neural network
+    target_kl = [0.02]	
+    minibatch_size = [32]	
     gamma = [0.9]
-    ent_coef = [0.01]	# Weight of the entropy loss in the total loss
-    vf_coef = [0.5]	        # Weight of the value loss in the total loss
-    num_nn = [2048]
-    critic_std = [1]
-    actor_std = [0.01]
-    num_epoch_steps = 128    # How many steps you interact with the env before a reset
+    ent_coef = [0.01]	            
+    vf_coef = [0.5]	
+    total_timesteps = [100000]	
+    learning_rate = [1e-4]
+    gnn_layers = [3]
+    num_epoch_steps = 128
 
-    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 10, num_epoch_steps, 631)
+    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 3, num_epoch_steps, 630)
 
     for tk in target_kl:
         for bs in minibatch_size:
             for ga in gamma:
                 for ef in ent_coef:
                     for vf in vf_coef:
-                        for num in num_nn:
-                            for cstd in critic_std:
-                                for astd in actor_std:
-                                    name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)+'_num'+str(num)+'_cs'+str(cstd)+'_as'+str(astd)
-                                    train(env, name, tk, bs, ga, ef, vf, num, cstd, astd, num_epoch_steps)
+                        for lr in learning_rate:
+                            for tt in total_timesteps:
+                                for gl in gnn_layers:
+                                    name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)+'_lr'+str(lr)+'_tt'+str(tt)+'_gl'+str(gl)
+                                    train(env, name, tk, bs, ga, ef, vf, lr, tt, gl, num_epoch_steps)

@@ -90,10 +90,13 @@ class PQ9Client:
         command['dest'] = str(19)
         command['src'] = '8'
         command['data'] = '0'
+        sleep(1)
         self.sendFrame(command)
         self.file.write('[Reset EGSE]\n')
         command['dest'] = str(destID)
         command['data'] = '19 1 1'
+        sleep(1)
         self.sendFrame(command)
         string = '[send to ' + command['dest'] + ' at {:.3f}'.format(time()-self.startTime) + ']\t\t' + command['data']
         self.file.write(string + '\n')
+        sleep(1)
