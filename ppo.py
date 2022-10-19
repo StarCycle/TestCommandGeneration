@@ -7,9 +7,8 @@ from torch.utils.tensorboard import SummaryWriter
 from GNN_Agent import GNN_Agent
 from MyEnv import MyEnv
 
-def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learning_rate, out_channels, gnn_layers, num_epoch_steps):
+def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learning_rate, total_timesteps, gnn_layers, num_epoch_steps):
 
-    total_timesteps = 500000             # How many steps you interact with the env
     num_env_steps = 128                  # How many steps you interact with the env before an update
     num_update_steps = 4                 # How many times you update the neural networks after interation
     gae_lambda = 0.95                    # Parameter in advantage estimation
@@ -18,7 +17,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learni
 
     writer = SummaryWriter('runs/' + name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = GNN_Agent(env, 'graph.json', out_channels, gnn_layers, device).to(device)
+    agent = GNN_Agent(env, 'graph_len127.json', gnn_layers, device).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
@@ -147,10 +146,10 @@ if __name__ == "__main__":
     minibatch_size = [32]	
     gamma = [0.9]
     ent_coef = [0.01]	            
-    vf_coef = [0.5]		
+    vf_coef = [0.5]	
+    total_timesteps = [500000]	
     learning_rate = [1e-4]
-    out_channels = [8]
-    gnn_layers = [5]
+    gnn_layers = [3]
     num_epoch_steps = 128
 
     env = MyEnv('COMMS', 4, 'para.csv', 'telec.csv', 'telem.csv', num_epoch_steps, 630)
@@ -161,7 +160,7 @@ if __name__ == "__main__":
                 for ef in ent_coef:
                     for vf in vf_coef:
                         for lr in learning_rate:
-                            for oc in out_channels:
+                            for tt in total_timesteps:
                                 for gl in gnn_layers:
-                                    name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)+'_lr'+str(lr)+'_oc'+str(oc)+'_gl'+str(gl)
-                                    train(env, name, tk, bs, ga, ef, vf, lr, oc, gl, num_epoch_steps)
+                                    name = 'tk'+str(tk)+'_bs'+str(bs)+'_ga'+str(ga)+'_ef'+str(ef)+'_vf'+str(vf)+'_lr'+str(lr)+'_tt'+str(tt)+'_gl'+str(gl)
+                                    train(env, name, tk, bs, ga, ef, vf, lr, tt, gl, num_epoch_steps)

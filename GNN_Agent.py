@@ -3,10 +3,10 @@ import torch
 import numpy as np
 from torch import nn
 from torch import Tensor 
-from torch.nn import functional as F
 from torch.distributions.categorical import Categorical
 from torch_geometric.nn.inits import uniform
 from torch_geometric.nn.conv import MessagePassing
+from torch_geometric.nn import global_add_pool
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -44,28 +44,31 @@ class GatedGraphConv(MessagePassing):
         return x_j
 
 class GNN_Agent(torch.nn.Module):
-    def __init__(self, env, graphFile, out_channels, gnn_layers, device):
+    def __init__(self, env, graphFile, gnn_layers, device):
         super(GNN_Agent, self).__init__()
-        with open('graph.json', 'r') as f:
+        with open(graphFile, 'r') as f:
             graph = json.load(f)
-        self.nodes = torch.tensor(graph['features'], dtype=torch.float32)
-        self.nodes = torch.zeros(self.nodes.shape)
-        self.edges = torch.tensor(graph['edges'], dtype=torch.long).T
+        self.nodes = torch.tensor(graph['features'], dtype=torch.float32).to(device)
+        self.edges = torch.tensor(graph['edges'], dtype=torch.long).T.to(device)
         self.count2label = torch.tensor(graph['count2label'], dtype=torch.long)
+        nodeChannels = self.nodes.shape[1] + 1 # Add Code cov info 
         self.historyVecLen = len(env.actions)			
-        self.graphConv = GatedGraphConv(out_channels, gnn_layers)
-        self.nodemlp = nn.Sequential(
-            layer_init(nn.Linear(out_channels, 1)),
-            nn.ReLU(),
-        )
+        self.graphConv = GatedGraphConv(nodeChannels, gnn_layers)
+        self.atten_i = nn.Linear(2*nodeChannels, 2*nodeChannels)
+        self.atten_j = nn.Linear(2*nodeChannels, 2*nodeChannels)
         self.graphmlp = nn.Sequential(
-            layer_init(nn.Linear(self.nodes.shape[0]+self.historyVecLen, 2048)),
+            layer_init(nn.Linear(2*nodeChannels+self.historyVecLen, 256), 0.01),
             nn.ReLU(),
         )
-        self.critic = layer_init(nn.Linear(2048, 1), 1)
-        self.actor = layer_init(nn.Linear(2048, len(env.actions)), 0.01)
-        
-    def GNN(self, cov, batchNum):
+        self.critic = layer_init(nn.Linear(256, 1), 1)
+        self.actor = layer_init(nn.Linear(256, len(env.actions)), 0.01)
+
+    def attention(self, x, nodesInput):
+        x = torch.cat((x, nodesInput), 1)
+        x = torch.mul(torch.sigmoid(self.atten_i(x)), torch.relu(self.atten_j(x)))
+        return x
+
+    def GNN(self, cov, batchNum, batch):
         device = cov.device
         nodesInput = torch.tensor([]).to(device)
         edgesInput = torch.tensor([], dtype=torch.long).to(device)
@@ -78,32 +81,43 @@ class GNN_Agent(torch.nn.Module):
             temp = self.edges + i*self.nodes.shape[0]
             edgesInput = torch.cat((edgesInput, temp), 1)
         x = self.graphConv(nodesInput, edgesInput) 
-        x = self.nodemlp(x)
-        x = x.reshape((batchNum, -1))
+        x = self.attention(x, nodesInput)
+        x = global_add_pool(x, batch=batch)
+        x = torch.relu(x)
         return x
 		
     def get_value(self, x):
         if len(x.shape) == 1:
             batchNum = 1
+            batch = [0]*self.nodes.shape[0]
             x = x.reshape((1, -1))
         else:
             batchNum = x.shape[0]
+            batch = []
+            for i in range(batchNum):
+                batch = batch + [i]*self.nodes.shape[0]
+        batch = torch.tensor(batch).to(x.device)
         cov = x[:, :len(self.count2label)]
         history = x[:, len(self.count2label):]
-        nodeData = self.GNN(cov, batchNum)
-        state = self.graphmlp(torch.cat((nodeData, history), 1))
+        graphEmb = self.GNN(cov, batchNum, batch)
+        state = self.graphmlp(torch.cat((graphEmb, history), 1))
         return self.critic(state)
 
     def get_action_and_value(self, x, action=None):
         if len(x.shape) == 1:
             batchNum = 1
+            batch = [0]*self.nodes.shape[0]
             x = x.reshape((1, -1))
         else:
             batchNum = x.shape[0]
+            batch = []
+            for i in range(batchNum):
+                batch = batch + [i]*self.nodes.shape[0]
+        batch = torch.tensor(batch).to(x.device)
         cov = x[:, :len(self.count2label)]
         history = x[:, len(self.count2label):]
-        nodeData = self.GNN(cov, batchNum)
-        state = self.graphmlp(torch.cat((nodeData, history), 1))
+        graphEmb = self.GNN(cov, batchNum, batch)
+        state = self.graphmlp(torch.cat((graphEmb, history), 1))
         logits = self.actor(state)
         probs = Categorical(logits=logits)
         if action is None:
