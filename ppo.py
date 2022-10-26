@@ -18,7 +18,8 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learni
 
     writer = SummaryWriter('runs/' + name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = GNN_Agent(env, 'graph_len127.json', gnn_layers, device).to(device)
+    agent = GNN_Agent(env, 'graph_old.json', gnn_layers, device).to(device)
+    # agent.load_state_dict(torch.load('OldModel'))
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
@@ -152,7 +153,7 @@ if __name__ == "__main__":
     gnn_layers = [3]
     num_epoch_steps = 128
 
-    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 3, num_epoch_steps, 630)
+    env = MyEnv('COMMS', 4, 'para.csv', [3, 17, 18, 25], 3, num_epoch_steps, 472)
 
     for tk in target_kl:
         for bs in minibatch_size:
