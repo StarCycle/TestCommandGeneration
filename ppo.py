@@ -18,6 +18,7 @@ def train(env, name, target_kl, minibatch_size, gamma, ent_coef, vf_coef, learni
     writer = SummaryWriter('runs/' + name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = GNN_Agent(env, 'graph_len127.json', gnn_layers, device).to(device)
+    agent.load_state_dict(torch.load('OldModel'))
     optimizer = optim.Adam(agent.parameters(), lr=learning_rate, eps=1e-5)
 
     # TRY NOT TO MODIFY: seeding
